@@ -10,6 +10,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("degrees", flag.ContinueOnError)
 	path := flags.String("db", "degrees.sqlite", "SQLite graph")
 	strict := flags.Bool("strict", false, "exclude covers and tributes")
+	listen := flags.String("listen", "127.0.0.1:8077", "web listen address")
 	priority := flags.String("priority", "", "select ranked artist or recording IDs from snapshot")
 	max := flags.Int("max", 7, "maximum degrees")
 	if e := flags.Parse(args); e != nil {
@@ -17,7 +18,7 @@ func run(args []string) error {
 	}
 	a := flags.Args()
 	if len(a) == 0 {
-		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize | rdf | rdf-dump TYPE")
+		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize | rdf | rdf-dump TYPE | serve")
 	}
 	if a[0] == "rdf" {
 		return factsRDF(os.Stdin, os.Stdout)
@@ -50,6 +51,8 @@ func run(args []string) error {
 	}
 	defer db.Close()
 	switch a[0] {
+	case "serve":
+		return serve(db, *listen)
 	case "import":
 		if len(a) < 2 {
 			return fmt.Errorf("import requires files")

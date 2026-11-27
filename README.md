@@ -32,6 +32,33 @@ JSONL is canonical; the SQLite database is a disposable projection. Each row des
 
 MusicBrainz core metadata: CC0 (https://musicbrainz.org/doc/MusicBrainz_Database/License). Curated factual assertions have individual citations; source text/audio is not redistributed. Structured artist-credit join phrases identify featured artists; recording credits are not proof of in-person interaction. Cover and tribute facts link performer to original artist, never two unrelated cover performers.
 
+## Web
+
+```sh
+./degrees import corpus/*.jsonl
+./degrees serve
+# http://127.0.0.1:8077
+```
+
+The embedded web UI uses the same SQLite graph and shortest-path engine as the CLI.
+Artist autocomplete, strict mode and source links are available. The default bind
+is loopback; external hosting is a separate deployment decision.
+
+## Relationship-first corpus
+
+We need evidence of connections, not exhaustive discographies. Ingest multi-artist
+recordings, explicit covers and tributes, group memberships, and producer credits.
+Solo recordings are retained only when they establish a relationship; popularity
+sets the acquisition order, not an exclusion criterion for connecting artists.
+
+```sh
+scripts/chart-collaborations.sh
+scripts/wikidata.sh
+```
+
+See [source notes](corpus/README.md). Rebuild the disposable SQLite projection from
+a fresh database after replacing shards, so removed facts do not remain indexed.
+
 ## Knowledge graph / OWL
 
 The existing game index is one projection of a broader music knowledge graph.
@@ -57,6 +84,7 @@ N-Triples shards are data, and SQLite remains the small traversal projection.
 - [x] OWL vocabulary, RDF export, streaming JSON dump projection, first instrument snapshot
 - [ ] Bulk RDF shard publication, source-specific license manifests and graph-to-game projection
 - [ ] Provider alias ingestion, richer disambiguation and weighted alternatives
-- [ ] Daily puzzle / web interface / RPC
+- [x] Web path explorer and HTTP API
+- [ ] Daily puzzle, public web deployment and RPC
 
 No full MusicBrainz mirror yet. The current traversal is single-source BFS; it reports shortest paths within the imported corpus only.

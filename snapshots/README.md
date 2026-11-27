@@ -7,7 +7,7 @@ The checked-in seed and instrument snapshot are derived data, not a second autho
 | seed.nt | Existing versioned JSONL facts (`cat corpus/*.jsonl \| ./degrees rdf`) |
 | musicbrainz-instrument-20261125-001001.nt.zst | Official MusicBrainz CC0 instrument JSON dump (source URL and SHA256 sidecars) |
 
-The instrument source archive passed upstream SHA256 verification. RDFLib parsed the ontology and both datasets: 50,948 distinct triples including 1,063 typed instruments. Generated N-Triples may contain repeated statements; RDF graph loading deduplicates them.
+The instrument source archive passed upstream SHA256 verification. The original RDFLib validation parsed the ontology and initial datasets: 50,948 distinct triples including 1,063 typed instruments. The seed has since been regenerated from the expanded relationship corpus. Generated N-Triples may contain repeated statements; RDF graph loading deduplicates them.
 
 Use `scripts/snapshot.sh ENTITY [VERSION]` after building the binary. Downloads remain in ignored .cache/; RDF shards are compressed. GitHub blocks ordinary Git files over 100 MiB; large shards should be split or published as release assets with checksums, not committed monolithically.
 
