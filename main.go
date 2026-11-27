@@ -16,7 +16,16 @@ func run(args []string) error {
 	}
 	a := flags.Args()
 	if len(a) == 0 {
-		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize")
+		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize | rdf | rdf-dump TYPE")
+	}
+	if a[0] == "rdf" {
+		return factsRDF(os.Stdin, os.Stdout)
+	}
+	if a[0] == "rdf-dump" {
+		if len(a) != 2 {
+			return fmt.Errorf("rdf-dump requires an entity type")
+		}
+		return dumpRDF(a[1], os.Stdin, os.Stdout)
 	}
 	if a[0] == "normalize" {
 		return normalize(os.Stdin, os.Stdout)

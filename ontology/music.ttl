@@ -1,0 +1,42 @@
+@prefix sd: <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix mo: <http://purl.org/ontology/mo/> .
+
+<https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl> a owl:Ontology ;
+  rdfs:label "SevenDegrees Music Knowledge Graph" .
+
+sd:Artist a owl:Class ; rdfs:subClassOf mo:MusicArtist .
+sd:Recording a owl:Class .
+sd:Work a owl:Class ; rdfs:subClassOf mo:MusicalWork .
+sd:Release a owl:Class .
+sd:ReleaseGroup a owl:Class .
+sd:Event a owl:Class .
+sd:Instrument a owl:Class ; rdfs:subClassOf mo:Instrument .
+sd:Label a owl:Class .
+sd:Area a owl:Class .
+sd:Place a owl:Class .
+sd:Series a owl:Class .
+sd:ExternalResource a owl:Class .
+sd:Fact a owl:Class ; rdfs:subClassOf prov:Entity .
+sd:Participation a owl:Class .
+sd:SourceRelationship a owl:Class .
+
+sd:participation a owl:ObjectProperty ; rdfs:range sd:Participation .
+sd:artist a owl:ObjectProperty ; rdfs:range sd:Artist .
+sd:relation a owl:ObjectProperty ; rdfs:range sd:SourceRelationship .
+sd:target a owl:ObjectProperty .
+sd:describes a owl:ObjectProperty .
+sd:kind a owl:DatatypeProperty .
+sd:role a owl:DatatypeProperty .
+sd:joinPhrase a owl:DatatypeProperty .
+sd:sourceType a owl:DatatypeProperty .
+sd:sourceTypeID a owl:DatatypeProperty .
+sd:disambiguation a owl:DatatypeProperty .
+sd:description a owl:DatatypeProperty .
+sd:direction a owl:DatatypeProperty .
+sd:begin a owl:DatatypeProperty .
+sd:end a owl:DatatypeProperty .
+sd:attribute a owl:DatatypeProperty .
+sd:externalURL a owl:DatatypeProperty .
