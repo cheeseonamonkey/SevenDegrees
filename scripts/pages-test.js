@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const {localGraph}=require('../web/graph.js');
+const graph=localGraph(JSON.parse(fs.readFileSync(process.argv[2],'utf8')));
+assert.equal(graph.path('Tom Morello','David Bowie',false).degrees,3);
+assert.equal(graph.path('The Wiggles','Tame Impala',false).degrees,1);
+assert.equal(graph.path('The Wiggles','Tame Impala',true).found,false);
+assert.equal(graph.path('David Bowie','David Bowie',false).degrees,0);
+assert.equal(graph.search('morello')[0].name,'Tom Morello');
+console.log(graph.stats(),'static traversal passed');

@@ -112,3 +112,12 @@ Gzip JSONL is directly supported by `degrees import`. Bulk outputs and cache
 are excluded from Git history. The source archive is checksum-verified.
 The full graph is built fresh, then checked before publication. The current
 seed remains available throughout the build.
+
+## GitHub Pages
+
+[Play SevenDegrees](https://cheeseonamonkey.github.io/SevenDegrees/).
+The Pages workflow builds a static snapshot from the committed seed corpus.
+The browser traverses Go-exported, role-aware adjacency without a server.
+The bulk release is not yet integrated into Pages: the initial snapshot is
+small while the full ingestion runs. A later browser projection should be
+size-bounded rather than sending a full multi-million-record graph to a phone.

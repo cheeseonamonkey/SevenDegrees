@@ -18,7 +18,7 @@ func run(args []string) error {
 	}
 	a := flags.Args()
 	if len(a) == 0 {
-		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize | rdf | rdf-dump TYPE | serve")
+		return fmt.Errorf("usage: degrees [flags] import FILE... | find ARTIST ARTIST | neighbors ARTIST | stats | fetch MBID [MBID...] | normalize | rdf | rdf-dump TYPE | serve | export-static")
 	}
 	if a[0] == "rdf" {
 		return factsRDF(os.Stdin, os.Stdout)
@@ -51,6 +51,8 @@ func run(args []string) error {
 	}
 	defer db.Close()
 	switch a[0] {
+	case "export-static":
+		return exportStatic(db, os.Stdout)
 	case "serve":
 		return serve(db, *listen)
 	case "import":
