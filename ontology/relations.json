@@ -1,0 +1,8 @@
+{
+  "recording":{"class":"RecordingFact","roles":["performer","featured","producer"],"required":[["performer","featured"]],"strict":true,"mode":"credit"},
+  "performance":{"class":"PerformanceFact","roles":["performer","featured","producer"],"required":[["performer","featured"]],"strict":true,"mode":"credit"},
+  "cover":{"class":"CoverFact","roles":["performer","original"],"required":[["performer"],["original"]],"strict":false,"mode":"cross"},
+  "cover-reference":{"class":"CoverReferenceFact","roles":["performer","reference"],"required":[["performer"],["reference"]],"strict":false,"mode":"cross"},
+  "tribute":{"class":"TributeFact","roles":["performer","original"],"required":[["performer"],["original"]],"strict":false,"mode":"cross"},
+  "membership":{"class":"MembershipFact","roles":["member","group"],"required":[["member"],["group"]],"single":["group"],"strict":true,"mode":"cross"}
+}

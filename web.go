@@ -85,6 +85,31 @@ func webAPI(db *sql.DB) http.Handler {
 		}
 		jsonReply(w, 200, map[string]any{"found": ok, "start": webArtist{a, label(db, a)}, "steps": result, "degrees": len(result)})
 	})
+	mux.HandleFunc("GET /api/neighbors", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		id, e := resolve(db, q.Get("artist"))
+		if e != nil {
+			fail(w, 400, e)
+			return
+		}
+		edges, e := neighbors(db, id, q.Get("strict") == "true")
+		if e != nil {
+			fail(w, 500, fmt.Errorf("search unavailable"))
+			return
+		}
+		seen := map[string]bool{}
+		steps := []webStep{}
+		for _, s := range edges {
+			if seen[s.To] {
+				continue
+			}
+			seen[s.To] = true
+			if len(steps) < 40 {
+				steps = append(steps, webStep{webArtist{s.To, label(db, s.To)}, s.Kind, s.Title, s.Source})
+			}
+		}
+		jsonReply(w, 200, map[string]any{"root": webArtist{id, label(db, id)}, "total": len(seen), "steps": steps})
+	})
 	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) {
 		result := map[string]int{}
 		for _, table := range []string{"artist", "fact", "participant"} {

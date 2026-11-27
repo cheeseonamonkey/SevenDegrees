@@ -50,56 +50,37 @@ func openGraph(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-func valid(f Fact) error {
-	if f.ID == "" || f.Title == "" || !strings.HasPrefix(f.Source, "https://") || len(f.Participants) < 2 {
-		return fmt.Errorf("invalid fact %q", f.ID)
-	}
-	roles := map[string]int{}
-	ids := map[string]bool{}
-	for _, a := range f.Participants {
-		if a.ID == "" || a.Name == "" || a.Role == "" {
-			return fmt.Errorf("invalid participant in %s", f.ID)
-		}
-		roles[a.Role]++
-		ids[a.ID] = true
-	}
-	if len(ids) < 2 {
-		return fmt.Errorf("fact %s has fewer than two artists", f.ID)
-	}
-	switch f.Kind {
-	case "recording", "performance":
-		if roles["performer"]+roles["featured"] < 1 {
-			return fmt.Errorf("missing performer: %s", f.ID)
-		}
-		for role := range roles {
-			if role != "performer" && role != "featured" && role != "producer" {
-				return fmt.Errorf("invalid role %s", role)
-			}
-		}
-	case "cover-reference":
-		if roles["performer"] == 0 || roles["reference"] == 0 || len(roles) != 2 {
-			return fmt.Errorf("invalid cover-reference roles: %s", f.ID)
-		}
-	case "cover", "tribute":
-		if roles["performer"] == 0 || roles["original"] == 0 || len(roles) != 2 {
-			return fmt.Errorf("invalid cover/tribute roles: %s", f.ID)
-		}
-	case "membership":
-		if roles["member"] == 0 || roles["group"] != 1 || len(roles) != 2 {
-			return fmt.Errorf("invalid membership roles: %s", f.ID)
-		}
-	default:
-		return fmt.Errorf("unknown kind %s", f.Kind)
-	}
-	return nil
-}
-
 func ingest(db *sql.DB, r io.Reader) (int, error) {
 	tx, e := db.Begin()
 	if e != nil {
 		return 0, e
 	}
 	defer tx.Rollback()
+	putFact, e := tx.Prepare("INSERT INTO fact VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,title=excluded.title,source=excluded.source")
+	if e != nil {
+		return 0, e
+	}
+	defer putFact.Close()
+	clearParticipants, e := tx.Prepare("DELETE FROM participant WHERE fact=?")
+	if e != nil {
+		return 0, e
+	}
+	defer clearParticipants.Close()
+	putArtist, e := tx.Prepare("INSERT INTO artist VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name")
+	if e != nil {
+		return 0, e
+	}
+	defer putArtist.Close()
+	putAlias, e := tx.Prepare("INSERT OR IGNORE INTO alias VALUES(?,?)")
+	if e != nil {
+		return 0, e
+	}
+	defer putAlias.Close()
+	putParticipant, e := tx.Prepare("INSERT OR IGNORE INTO participant VALUES(?,?,?)")
+	if e != nil {
+		return 0, e
+	}
+	defer putParticipant.Close()
 	s := bufio.NewScanner(r)
 	s.Buffer(make([]byte, 4096), 4<<20)
 	n := 0
@@ -114,20 +95,20 @@ func ingest(db *sql.DB, r io.Reader) (int, error) {
 		if e = valid(f); e != nil {
 			return 0, e
 		}
-		if _, e = tx.Exec("INSERT INTO fact VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET kind=excluded.kind,title=excluded.title,source=excluded.source", f.ID, f.Kind, f.Title, f.Source); e != nil {
+		if _, e = putFact.Exec(f.ID, f.Kind, f.Title, f.Source); e != nil {
 			return 0, e
 		}
-		if _, e = tx.Exec("DELETE FROM participant WHERE fact=?", f.ID); e != nil {
+		if _, e = clearParticipants.Exec(f.ID); e != nil {
 			return 0, e
 		}
 		for _, a := range f.Participants {
-			if _, e = tx.Exec("INSERT INTO artist VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name", a.ID, a.Name); e != nil {
+			if _, e = putArtist.Exec(a.ID, a.Name); e != nil {
 				return 0, e
 			}
-			if _, e = tx.Exec("INSERT OR IGNORE INTO alias VALUES(?,?)", a.ID, a.Name); e != nil {
+			if _, e = putAlias.Exec(a.ID, a.Name); e != nil {
 				return 0, e
 			}
-			if _, e = tx.Exec("INSERT OR IGNORE INTO participant VALUES(?,?,?)", f.ID, a.ID, a.Role); e != nil {
+			if _, e = putParticipant.Exec(f.ID, a.ID, a.Role); e != nil {
 				return 0, e
 			}
 		}
@@ -167,9 +148,7 @@ func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
  SELECT a.artist,b.artist,f.kind,f.title,f.source,a.role,b.role
  FROM participant a JOIN participant b ON a.fact=b.fact AND a.artist<>b.artist
  JOIN fact f ON f.id=a.fact
- WHERE a.artist=? AND (
- (f.kind IN ('recording','performance') AND (a.role<>'producer' OR b.role<>'producer'))
- OR (f.kind IN ('cover','cover-reference','tribute','membership') AND a.role<>b.role))
+ WHERE a.artist=?
  ORDER BY b.artist, CASE f.kind WHEN 'recording' THEN 0 WHEN 'performance' THEN 1 ELSE 2 END,f.id,a.role,b.role`, id)
 	if e != nil {
 		return nil, e
@@ -182,59 +161,83 @@ func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
 		if e = rows.Scan(&s.From, &s.To, &s.Kind, &s.Title, &s.Source, &a, &b); e != nil {
 			return nil, e
 		}
-		if strict && (s.Kind == "cover" || s.Kind == "cover-reference" || s.Kind == "tribute") {
+		kind, ok := classify(s.Kind, a, b, strict)
+		if !ok {
 			continue
 		}
-		if s.Kind == "recording" || s.Kind == "performance" {
-			if a == "producer" || b == "producer" {
-				s.Kind = "production"
-			} else if a == "featured" || b == "featured" {
-				s.Kind = "featured"
-			}
-		}
+		s.Kind = kind
 		out = append(out, s)
 	}
 	return out, rows.Err()
 }
 
-// BFS visits each artist once, retaining an evidence-bearing predecessor.
+// Search both ends by complete BFS layers, expanding the smaller frontier.
+// Edges are symmetric for traversal, while the source fact retains roles.
 func find(db *sql.DB, start, end string, limit int, strict bool) ([]Step, bool, error) {
+	return shortest(start, end, limit, func(id string) ([]Step, error) { return neighbors(db, id, strict) })
+}
+
+type visit struct {
+	step  Step
+	depth int
+}
+type frontier struct {
+	nodes []string
+	seen  map[string]visit
+	depth int
+}
+
+func newFrontier(id string) *frontier { return &frontier{[]string{id}, map[string]visit{id: {}}, 0} }
+func shortest(start, end string, limit int, adj func(string) ([]Step, error)) ([]Step, bool, error) {
 	if start == end {
 		return nil, true, nil
 	}
-	type node struct {
-		id    string
-		depth int
-	}
-	queue := []node{{start, 0}}
-	prev := map[string]Step{start: {}}
-	for i := 0; i < len(queue); i++ {
-		n := queue[i]
-		if n.depth >= limit {
-			continue
+	left, right := newFrontier(start), newFrontier(end)
+	for len(left.nodes) > 0 && len(right.nodes) > 0 && left.depth+right.depth < limit {
+		a, b := left, right
+		if len(a.nodes) > len(b.nodes) {
+			a, b = b, a
 		}
-		edges, e := neighbors(db, n.id, strict)
-		if e != nil {
-			return nil, false, e
+		var next []string
+		best := ""
+		distance := limit + 1
+		for _, id := range a.nodes {
+			edges, e := adj(id)
+			if e != nil {
+				return nil, false, e
+			}
+			for _, s := range edges {
+				if _, ok := a.seen[s.To]; ok {
+					continue
+				}
+				v := visit{s, a.depth + 1}
+				a.seen[s.To] = v
+				next = append(next, s.To)
+				if other, ok := b.seen[s.To]; ok && v.depth+other.depth < distance {
+					best = s.To
+					distance = v.depth + other.depth
+				}
+			}
 		}
-		for _, s := range edges {
-			if _, ok := prev[s.To]; ok {
-				continue
+		a.nodes = next
+		a.depth++
+		if best != "" {
+			var path []Step
+			for at := best; at != start; {
+				s := left.seen[at].step
+				path = append(path, s)
+				at = s.From
 			}
-			prev[s.To] = s
-			if s.To == end {
-				var path []Step
-				for at := end; at != start; {
-					p := prev[at]
-					path = append(path, p)
-					at = p.From
-				}
-				for l, r := 0, len(path)-1; l < r; l, r = l+1, r-1 {
-					path[l], path[r] = path[r], path[l]
-				}
-				return path, true, nil
+			for l, r := 0, len(path)-1; l < r; l, r = l+1, r-1 {
+				path[l], path[r] = path[r], path[l]
 			}
-			queue = append(queue, node{s.To, n.depth + 1})
+			for at := best; at != end; {
+				s := right.seen[at].step
+				s.From, s.To = s.To, s.From
+				path = append(path, s)
+				at = s.To
+			}
+			return path, true, nil
 		}
 	}
 	return nil, false, nil

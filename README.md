@@ -79,15 +79,16 @@ N-Triples shards are data, and SQLite remains the small traversal projection.
 - [x] Versioned evidence-bearing seed corpus
 - [x] SQLite projection, role-aware traversal, bounded shortest paths
 - [x] MusicBrainz recording-credit fetcher with request pacing
-- [ ] Bulk MusicBrainz dump adapter, including artist relationships and work-level credits
-- [ ] Explicit work/recording mapping for covers; avoid inferring an original performer from a songwriter alone
+- [x] Bulk MusicBrainz dump adapter, including artist relationships and work-level credits
+- [x] Explicit work/recording references for covers, distinguished from confirmed originals
 - [x] OWL vocabulary, RDF export, streaming JSON dump projection, first instrument snapshot
 - [ ] Bulk RDF shard publication, source-specific license manifests and graph-to-game projection
 - [ ] Provider alias ingestion, richer disambiguation and weighted alternatives
 - [x] Web path explorer and HTTP API
-- [ ] Daily puzzle, public web deployment and RPC
+- [x] Public Pages deployment, graph explorer and read-only MCP adapter
+- [ ] Daily puzzle and incremental full-graph loading
 
-No full MusicBrainz mirror yet. The current traversal is single-source BFS; it reports shortest paths within the imported corpus only.
+No full MusicBrainz mirror yet. The current traversal is bidirectional BFS; it reports shortest paths within the imported corpus only.
 
 ## Bulk relationship corpus
 
@@ -113,11 +114,63 @@ are excluded from Git history. The source archive is checksum-verified.
 The full graph is built fresh, then checked before publication. The current
 seed remains available throughout the build.
 
-## GitHub Pages
+## GitHub Pages and static data API
 
-[Play SevenDegrees](https://cheeseonamonkey.github.io/SevenDegrees/).
-The Pages workflow builds a static snapshot from the committed seed corpus.
-The browser traverses Go-exported, role-aware adjacency without a server.
-The bulk release is not yet integrated into Pages: the initial snapshot is
-small while the full ingestion runs. A later browser projection should be
-size-bounded rather than sending a full multi-million-record graph to a phone.
+[Explore SevenDegrees](https://cheeseonamonkey.github.io/SevenDegrees/).
+
+The full corpus contains **1,595,768 artists, 7,744,208 facts and 22,789,513
+participant relationships**. Pages defaults to a smaller popularity-first
+projection (93,472 artists, 373,708 facts). The full projection is an optional
+large download once its verified export is published. Neither projection
+discards source facts from the canonical [release](https://github.com/cheeseonamonkey/SevenDegrees/releases/tag/corpus-mb-20261125-002239).
+
+Static API: `api/v1/manifest.json`, `api/v1/stats.json`, `api/v1/relations.json`,
+`api/v1/ontology/`, and the gzip graph URL/parts advertised by the manifest.
+The format is integer-indexed CSR adjacency with shared evidence and string
+dictionaries. Each pair retains one witness per strict-mode eligibility class,
+not every recording. The full corpus retains the other evidence.
+A vanilla JS worker uses the shared graph client for path and neighbor queries;
+Cytoscape.js renders the bounded interactive neighborhood. The API serves static
+files, not server-side dynamic SPARQL or arbitrary RPC.
+
+### Read-only MCP
+
+```sh
+npm ci
+npm run mcp
+```
+
+Configure a local MCP client with command `node` and argument
+`/absolute/path/to/SevenDegrees/mcp.mjs`. The official SDK provides stdio
+transport. Tools: `music_stats`, `music_search`, `music_path`,
+`music_neighbors`. Set `scope: "full"` when the full graph is published.
+The server uses the same static graph client as the website; it requires no
+credentials or writes. Pages itself cannot host a dynamic MCP transport.
+
+### Semantic tools (.NET 10)
+
+```sh
+dotnet run --project semantic -- query snapshots/seed.nt queries/relationship-counts.rq
+dotnet run --project semantic -- validate snapshots/seed.nt ontology/shapes.ttl
+dotnet run --project semantic -- stats bulk/20261125-002239/graph.sqlite
+```
+
+dotNetRDF executes SPARQL and SHACL locally; Microsoft.Data.Sqlite opens the
+existing index read-only. This is the initial C# migration slice, not a second
+ingestion/traversal engine. The full RDF corpus is not loaded into memory by
+default. Relation rules in `ontology/relations.json` drive validation in Go
+and the Python bulk importer, and generate OWL types and SHACL constraints via
+`python3 scripts/schema.py`. Existing RDF predicates remain compatible.
+
+### Build and publish
+
+```sh
+PAGES_RELEASE=corpus-mb-20261125-002239 scripts/pages.sh .cache/pages
+./degrees -db bulk/20261125-002239/graph.sqlite export-static | gzip -n -6 > .cache/full/graph.json.gz
+scripts/publish-full.sh .cache/full/graph.json.gz
+```
+
+Actions verifies release checksums before building. Full export publication
+verifies counts and splits the compressed stream into bounded assets, then
+triggers Pages deployment. The full snapshot may require desktop-class memory;
+the priority snapshot remains the mobile default.

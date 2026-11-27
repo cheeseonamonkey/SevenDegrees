@@ -5,3 +5,8 @@
 
 __pycache__/
 /bulk/
+
+**/bin/
+**/obj/
+
+/node_modules/

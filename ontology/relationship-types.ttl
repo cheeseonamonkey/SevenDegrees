@@ -1,0 +1,25 @@
+@prefix sd: <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+<https://raw.githubusercontent.com/cheeseonamonkey/SevenDegrees/main/ontology/relationship-types.ttl> a owl:Ontology .
+sd:Role a owl:Class ; rdfs:subClassOf skos:Concept .
+sd:roleType a owl:ObjectProperty ; rdfs:domain sd:Participation ; rdfs:range sd:Role .
+sd:role-featured a sd:Role, owl:NamedIndividual ; rdfs:label "featured" .
+sd:role-group a sd:Role, owl:NamedIndividual ; rdfs:label "group" .
+sd:role-member a sd:Role, owl:NamedIndividual ; rdfs:label "member" .
+sd:role-original a sd:Role, owl:NamedIndividual ; rdfs:label "original" .
+sd:role-performer a sd:Role, owl:NamedIndividual ; rdfs:label "performer" .
+sd:role-producer a sd:Role, owl:NamedIndividual ; rdfs:label "producer" .
+sd:role-reference a sd:Role, owl:NamedIndividual ; rdfs:label "reference" .
+sd:RecordingFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "recording" .
+sd:PerformanceFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "performance" .
+sd:CoverFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "cover" .
+sd:CoverReferenceFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "cover-reference" .
+sd:TributeFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "tribute" .
+sd:MembershipFact a owl:Class ; rdfs:subClassOf sd:Fact ; rdfs:label "membership" .
+[] a owl:AllDisjointClasses ; owl:members ( sd:RecordingFact sd:PerformanceFact sd:CoverFact sd:CoverReferenceFact sd:TributeFact sd:MembershipFact ) .

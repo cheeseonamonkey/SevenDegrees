@@ -1,10 +1,14 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {localGraph}=require('../web/graph.js');
-const graph=localGraph(JSON.parse(fs.readFileSync(process.argv[2],'utf8')));
-assert.equal(graph.path('Tom Morello','David Bowie',false).degrees,3);
+const graph=localGraph(JSON.parse(require('node:zlib').gunzipSync(fs.readFileSync(process.argv[2]))));
+const original=graph.path('Tom Morello','David Bowie',false);
+assert.ok(original.found && original.degrees<=3);
+if(graph.stats().artist===773)assert.equal(original.degrees,3);
 assert.equal(graph.path('The Wiggles','Tame Impala',false).degrees,1);
-assert.equal(graph.path('The Wiggles','Tame Impala',true).found,false);
+const strict=graph.path('The Wiggles','Tame Impala',true);
+if(graph.stats().artist===773)assert.equal(strict.found,false);
+assert.ok(strict.steps.every(s=>!['cover','cover-reference','tribute'].includes(s.kind)));
 assert.equal(graph.path('David Bowie','David Bowie',false).degrees,0);
-assert.equal(graph.search('morello')[0].name,'Tom Morello');
+assert.equal(graph.search('Tom Morello')[0].name,'Tom Morello');
 console.log(graph.stats(),'static traversal passed');

@@ -74,6 +74,7 @@ func factsRDF(in io.Reader, out io.Writer) error {
 		}
 		s := vocab + "fact/" + url.PathEscape(f.ID)
 		t.link(s, rdfType, vocab+"Fact")
+		t.link(s, rdfType, vocab+rules[f.Kind].Class)
 		t.text(s, labelIRI, f.Title)
 		t.text(s, vocab+"kind", f.Kind)
 		source, err := url.Parse(f.Source)
@@ -84,6 +85,23 @@ func factsRDF(in io.Reader, out io.Writer) error {
 		if strings.HasPrefix(f.ID, "mb:recording:") {
 			t.link(s, vocab+"describes", entityIRI("recording", strings.TrimPrefix(f.ID, "mb:recording:")))
 		}
+		parts := strings.Split(f.ID, ":")
+		if len(parts) == 4 && parts[0] == "mb" && mbid.MatchString(parts[2]) && mbid.MatchString(parts[3]) {
+			switch parts[1] {
+			case "cover-reference":
+				recording, work := entityIRI("recording", parts[2]), entityIRI("work", parts[3])
+				t.link(recording, rdfType, vocab+"Recording")
+				t.link(work, rdfType, vocab+"Work")
+				t.link(s, vocab+"describes", recording)
+				t.link(s, vocab+"referenceWork", work)
+			case "album-cover":
+				a, b := entityIRI("release-group", parts[2]), entityIRI("release-group", parts[3])
+				t.link(a, rdfType, vocab+"ReleaseGroup")
+				t.link(b, rdfType, vocab+"ReleaseGroup")
+				t.link(s, vocab+"describes", a)
+				t.link(s, vocab+"referenceReleaseGroup", b)
+			}
+		}
 		for _, a := range f.Participants {
 			target := artistIRI(a.ID)
 			p := s + "/participant/" + url.PathEscape(a.ID) + "/" + url.PathEscape(a.Role)
@@ -93,6 +111,7 @@ func factsRDF(in io.Reader, out io.Writer) error {
 			t.link(p, rdfType, vocab+"Participation")
 			t.link(p, vocab+"artist", target)
 			t.text(p, vocab+"role", a.Role)
+			t.link(p, vocab+"roleType", vocab+"role-"+a.Role)
 		}
 		return t.err
 	})
@@ -157,7 +176,7 @@ func dumpSelectedRDF(kind string, in io.Reader, out io.Writer, ids map[string]bo
 			}
 			p := fmt.Sprintf("%s#credit-%d", s, i)
 			t.link(s, vocab+"participation", p)
-			t.link(p, rdfType, vocab+"Participation")
+			t.link(p, rdfType, vocab+"ArtistCredit")
 			t.link(p, vocab+"artist", artistIRI(c.Artist.ID))
 			t.text(p, vocab+"joinPhrase", c.Joinphrase)
 		}

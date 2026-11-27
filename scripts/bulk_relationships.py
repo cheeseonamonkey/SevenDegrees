@@ -28,6 +28,7 @@ TABLES = {
     "link_attribute_type": ("id INTEGER PRIMARY KEY,gid TEXT,name TEXT", (0, 4, 5)),
     "l_artist_recording": ("id INTEGER PRIMARY KEY,link INTEGER,artist INTEGER,recording INTEGER", (0, 1, 2, 3)),
 }
+RULES = json.loads((pathlib.Path(__file__).resolve().parents[1]/"ontology/relations.json").read_text())
 UUID = re.compile(r"^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 FEATURE = re.compile(r"\b(feat\.?|featuring|ft\.?)\b", re.I)
 EXCLUDED = {"89ad4ac3-39f7-470e-963a-56509c546377", "125ec42a-7229-4250-afc5-e057484327fe", "33cf029c-63b0-41a0-9855-be2a3665fb3b"}
@@ -59,6 +60,11 @@ def normalize_fact(f):
     f["participants"] = sorted(actors.values(),key=lambda a:(a["id"],a["role"]))
     if len({a["id"] for a in f["participants"]})<2 or not f["title"].strip():
         return None
+    rule=RULES.get(f["kind"])
+    roles=collections.Counter(a["role"] for a in f["participants"])
+    if not rule or set(roles)-set(rule["roles"]): return None
+    if any(not any(roles[r] for r in group) for group in rule["required"]): return None
+    if any(roles[r]!=1 for r in rule.get("single",[])): return None
     # Keep a compact, defensible event, not a giant compilation clique.
     if f["kind"]=="recording":
         if len(f["participants"])>16 or not any(a["role"] in ("performer","featured") for a in f["participants"]):

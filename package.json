@@ -1,0 +1,8 @@
+{
+  "name":"sevendegrees-mcp",
+  "version":"0.1.0",
+  "private":true,
+  "scripts":{"mcp":"node mcp.mjs"},
+  "engines":{"node":">=20"},
+  "dependencies":{"@modelcontextprotocol/sdk":"1.32.2","zod":"4.6.7"}
+}

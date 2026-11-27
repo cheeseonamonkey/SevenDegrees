@@ -2,13 +2,16 @@
 @prefix owl: <http://www.w3.org/2002/07/owl#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 @prefix mo: <http://purl.org/ontology/mo/> .
 
 <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl> a owl:Ontology ;
-  rdfs:label "SevenDegrees Music Knowledge Graph" .
+  rdfs:label "SevenDegrees Music Knowledge Graph" ;
+  owl:versionInfo "2.0" ;
+  owl:imports <https://raw.githubusercontent.com/cheeseonamonkey/SevenDegrees/main/ontology/relationship-types.ttl> .
 
 sd:Artist a owl:Class ; rdfs:subClassOf mo:MusicArtist .
-sd:Recording a owl:Class .
+sd:Recording a owl:Class ; rdfs:subClassOf mo:Signal .
 sd:Work a owl:Class ; rdfs:subClassOf mo:MusicalWork .
 sd:Release a owl:Class .
 sd:ReleaseGroup a owl:Class .
@@ -21,15 +24,18 @@ sd:Series a owl:Class .
 sd:ExternalResource a owl:Class .
 sd:Fact a owl:Class ; rdfs:subClassOf prov:Entity .
 sd:Participation a owl:Class .
+sd:ArtistCredit a owl:Class ; rdfs:subClassOf sd:Participation .
+sd:referenceWork a owl:ObjectProperty ; rdfs:range sd:Work .
+sd:referenceReleaseGroup a owl:ObjectProperty ; rdfs:range sd:ReleaseGroup .
 sd:SourceRelationship a owl:Class .
 
 sd:participation a owl:ObjectProperty ; rdfs:range sd:Participation .
-sd:artist a owl:ObjectProperty ; rdfs:range sd:Artist .
+sd:artist a owl:ObjectProperty, owl:FunctionalProperty ; rdfs:domain sd:Participation ; rdfs:range sd:Artist .
 sd:relation a owl:ObjectProperty ; rdfs:range sd:SourceRelationship .
 sd:target a owl:ObjectProperty .
 sd:describes a owl:ObjectProperty .
-sd:kind a owl:DatatypeProperty .
-sd:role a owl:DatatypeProperty .
+sd:kind a owl:DatatypeProperty ; rdfs:domain sd:Fact ; rdfs:range xsd:string .
+sd:role a owl:DatatypeProperty ; rdfs:domain sd:Participation ; rdfs:range xsd:string .
 sd:joinPhrase a owl:DatatypeProperty .
 sd:sourceType a owl:DatatypeProperty .
 sd:sourceTypeID a owl:DatatypeProperty .

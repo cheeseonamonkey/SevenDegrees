@@ -1,0 +1,52 @@
+@prefix sd: <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+sd:FactShape a sh:NodeShape ;
+  sh:targetClass sd:Fact ;
+  sh:property [ sh:path rdfs:label ; sh:minCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path prov:wasDerivedFrom ; sh:minCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path sd:participation ; sh:minCount 2 ; sh:node sd:FactParticipationShape ] .
+
+sd:FactParticipationShape a sh:NodeShape ;
+  sh:property [ sh:path sd:artist ; sh:minCount 1 ; sh:maxCount 1 ; sh:class sd:Artist ] ;
+  sh:property [ sh:path sd:roleType ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ( sd:role-featured sd:role-group sd:role-member sd:role-original sd:role-performer sd:role-producer sd:role-reference ) ] .
+
+sd:RecordingFactShape a sh:NodeShape ;
+  sh:targetClass sd:RecordingFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "recording" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-featured sd:role-producer ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-featured ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] .
+sd:PerformanceFactShape a sh:NodeShape ;
+  sh:targetClass sd:PerformanceFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "performance" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-featured sd:role-producer ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-featured ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] .
+sd:CoverFactShape a sh:NodeShape ;
+  sh:targetClass sd:CoverFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "cover" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-original ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-original ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] .
+sd:CoverReferenceFactShape a sh:NodeShape ;
+  sh:targetClass sd:CoverReferenceFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "cover-reference" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-reference ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-reference ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] .
+sd:TributeFactShape a sh:NodeShape ;
+  sh:targetClass sd:TributeFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "tribute" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer sd:role-original ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-performer ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-original ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] .
+sd:MembershipFactShape a sh:NodeShape ;
+  sh:targetClass sd:MembershipFact ;
+  sh:property [ sh:path sd:kind ; sh:hasValue "membership" ] ;
+  sh:property [ sh:path sd:participation ; sh:node [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-member sd:role-group ) ; sh:minCount 1 ] ] ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-member ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ] ;
+  sh:property [ sh:path sd:participation ; sh:qualifiedValueShape [ sh:property [ sh:path sd:roleType ; sh:in ( sd:role-group ) ; sh:minCount 1 ] ] ; sh:qualifiedMinCount 1 ; sh:qualifiedMaxCount 1 ] .

@@ -1,0 +1,4 @@
+PREFIX sd: <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl#>
+SELECT ?kind (COUNT(DISTINCT ?fact) AS ?count)
+WHERE { ?fact a sd:Fact ; sd:kind ?kind }
+GROUP BY ?kind ORDER BY DESC(?count)
