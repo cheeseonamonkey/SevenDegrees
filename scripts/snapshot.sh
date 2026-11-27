@@ -18,10 +18,16 @@ if [[ ! -f "$cache/$archive" ]]; then
   mv "$cache/$archive.part" "$cache/$archive"
 fi
 (cd "$cache"; sha256sum -c "$kind.sha256")
-shard="snapshots/musicbrainz-$kind-$version.nt.zst"
+args=()
+suffix=""
+if [[ -n "${PRIORITY:-}" ]]; then
+  args=(-priority "$PRIORITY")
+  suffix="-priority"
+fi
+shard="snapshots/musicbrainz-$kind-$version$suffix.nt.zst"
 tmp=$(mktemp "$shard.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
-tar -xOJf "$cache/$archive" "mbdump/$kind" | ./degrees rdf-dump "$kind" | zstd -q -T2 -f -o "$tmp"
+tar -xOJf "$cache/$archive" "mbdump/$kind" | ./degrees "${args[@]}" rdf-dump "$kind" | zstd -q -T2 -f -o "$tmp"
 mv "$tmp" "$shard"
 sha256sum "$shard" > "$shard.sha256"
 printf '%s\n' "$url" > "$shard.source"

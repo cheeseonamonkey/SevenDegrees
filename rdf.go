@@ -120,6 +120,10 @@ type dumpRelation struct {
 }
 
 func dumpRDF(kind string, in io.Reader, out io.Writer) error {
+	return dumpSelectedRDF(kind, in, out, nil)
+}
+
+func dumpSelectedRDF(kind string, in io.Reader, out io.Writer, ids map[string]bool) error {
 	class, ok := entityClasses[kind]
 	if !ok {
 		return fmt.Errorf("unknown entity type %q", kind)
@@ -132,6 +136,9 @@ func dumpRDF(kind string, in io.Reader, out io.Writer) error {
 		}
 		if !mbid.MatchString(e.ID) {
 			return fmt.Errorf("invalid entity ID %q", e.ID)
+		}
+		if ids != nil && !ids[e.ID] {
+			return nil
 		}
 		s := entityIRI(kind, e.ID)
 		t.link(s, rdfType, vocab+class)

@@ -23,3 +23,13 @@ Use `scripts/snapshot.sh ENTITY [VERSION]` after building the binary. Downloads 
 ## Scope
 
 The OWL vocabulary describes entities, evidence facts, participations and qualified source relationships. The dump converter currently projects names, descriptions, aliases, artist credits and relationship targets/attributes/direction/dates. It is not a lossless JSON conversion: unmapped fields such as track lists, release metadata and detailed attribute values remain in upstream archives. The existing degrees SQLite index still consumes the JSONL facts, not arbitrary RDF. No bulk Wikidata or LinkedMusic ingestion yet.
+
+## Popularity-first RDF pass
+
+```sh
+scripts/priority.sh 1000 10 20
+PRIORITY=corpus/priority.json scripts/snapshot.sh artist
+PRIORITY=corpus/priority.json scripts/snapshot.sh recording
+```
+
+These passes select ranked entity IDs and retain their source relationships, writing separate `-priority` shards. The original unfiltered ingestion is unchanged; a priority pass scans the source dump, so it reduces output and downstream indexing work, not the initial archive download. The ranking snapshot is committed; full priority artist/recording shards have not yet been produced.

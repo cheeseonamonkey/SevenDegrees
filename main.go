@@ -10,6 +10,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("degrees", flag.ContinueOnError)
 	path := flags.String("db", "degrees.sqlite", "SQLite graph")
 	strict := flags.Bool("strict", false, "exclude covers and tributes")
+	priority := flags.String("priority", "", "select ranked artist or recording IDs from snapshot")
 	max := flags.Int("max", 7, "maximum degrees")
 	if e := flags.Parse(args); e != nil {
 		return e
@@ -24,6 +25,13 @@ func run(args []string) error {
 	if a[0] == "rdf-dump" {
 		if len(a) != 2 {
 			return fmt.Errorf("rdf-dump requires an entity type")
+		}
+		if *priority != "" {
+			ids, e := priorityIDs(*priority, a[1])
+			if e != nil {
+				return e
+			}
+			return dumpSelectedRDF(a[1], os.Stdin, os.Stdout, ids)
 		}
 		return dumpRDF(a[1], os.Stdin, os.Stdout)
 	}
