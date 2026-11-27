@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -74,7 +75,7 @@ func webAPI(db *sql.DB) http.Handler {
 			fail(w, 400, e)
 			return
 		}
-		steps, ok, e := find(db, a, b, 7, q.Get("strict") == "true")
+		steps, ok, e := find(db, a, b, 12, q.Get("strict") == "true")
 		if e != nil {
 			fail(w, 500, fmt.Errorf("search unavailable"))
 			return
@@ -87,6 +88,15 @@ func webAPI(db *sql.DB) http.Handler {
 	})
 	mux.HandleFunc("GET /api/neighbors", func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
+		offset := 0
+		if raw := q.Get("offset"); raw != "" {
+			var err error
+			offset, err = strconv.Atoi(raw)
+			if err != nil || offset < 0 {
+				fail(w, 400, fmt.Errorf("invalid neighbor offset"))
+				return
+			}
+		}
 		id, e := resolve(db, q.Get("artist"))
 		if e != nil {
 			fail(w, 400, e)
@@ -104,11 +114,15 @@ func webAPI(db *sql.DB) http.Handler {
 				continue
 			}
 			seen[s.To] = true
-			if len(steps) < 40 {
+			if len(seen) > offset && len(steps) < 40 {
 				steps = append(steps, webStep{webArtist{s.To, label(db, s.To)}, s.Kind, s.Title, s.Source})
 			}
 		}
-		jsonReply(w, 200, map[string]any{"root": webArtist{id, label(db, id)}, "total": len(seen), "steps": steps})
+		var next *int
+		if n := offset + len(steps); n < len(seen) {
+			next = &n
+		}
+		jsonReply(w, 200, map[string]any{"next": next, "root": webArtist{id, label(db, id)}, "total": len(seen), "steps": steps})
 	})
 	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) {
 		result := map[string]int{}
@@ -128,6 +142,6 @@ func webAPI(db *sql.DB) http.Handler {
 }
 func serve(db *sql.DB, addr string) error {
 	srv := &http.Server{Addr: addr, Handler: webAPI(db), ReadHeaderTimeout: 5 * time.Second, WriteTimeout: 30 * time.Second, IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16384}
-	fmt.Println("SevenDegrees: http://" + addr)
+	fmt.Println("MusicAtlas: http://" + addr)
 	return srv.ListenAndServe()
 }

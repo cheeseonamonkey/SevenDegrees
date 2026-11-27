@@ -19,7 +19,7 @@ def role(r): return "sd:role-"+r
 def ttl_list(items): return "( "+" ".join(items)+" )"
 def role_shape(group):
     return "[ sh:path sd:roleType ; sh:in "+ttl_list(map(role,group))+" ; sh:minCount 1 ]"
-owl=[prefix, "<https://raw.githubusercontent.com/cheeseonamonkey/SevenDegrees/main/ontology/relationship-types.ttl> a owl:Ontology .", "sd:Role a owl:Class ; rdfs:subClassOf skos:Concept .",
+owl=[prefix, "<https://raw.githubusercontent.com/cheeseonamonkey/MusicAtlas/main/ontology/relationship-types.ttl> a owl:Ontology .", "sd:Role a owl:Class ; rdfs:subClassOf skos:Concept .",
      "sd:roleType a owl:ObjectProperty ; rdfs:domain sd:Participation ; rdfs:range sd:Role ."]
 for r in roles: owl.append(f'{role(r)} a sd:Role, owl:NamedIndividual ; rdfs:label "{r}" .')
 for kind,rule in rules.items():

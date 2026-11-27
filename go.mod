@@ -1,4 +1,4 @@
-module github.com/cheeseonamonkey/SevenDegrees
+module github.com/cheeseonamonkey/MusicAtlas
 
 go 1.24.4
 

@@ -1,5 +1,5 @@
 {
-  "name":"sevendegrees-mcp",
+  "name":"musicatlas-mcp",
   "version":"0.1.0",
   "private":true,
   "scripts":{"mcp":"node mcp.mjs"},

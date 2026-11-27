@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const make=(tag,text,cls)=>{const el=document.createElement(tag);if(text!==undefined)el.textContent=text;if(cls)el.className=cls;return el};
 const staticMode=!!document.querySelector('meta[name="static-graph"]');
-let worker,nextRequest=0,mode='path',network,requestVersion=0;
+let worker,nextRequest=0,mode='explore',network,requestVersion=0;
 const pending=new Map();
 function staticAPI(path,params){
  if(!worker){
@@ -26,27 +26,85 @@ function autocomplete(key){
 const closeOptions=['from','to'].map(autocomplete);
 const artist=k=>$(k).dataset.id||$(k).value.trim();
 const link=(source)=>{const a=make('a','Evidence');try{const u=new URL(source);if(u.protocol==='https:'){a.href=u.href;a.target='_blank';a.rel='noopener noreferrer'}}catch{}return a};
-function clearGraph(){if(network){network.destroy();network=undefined}$('network').hidden=true;$('detail').replaceChildren()}
-function renderPath(p){
- const result=$('result');if(!p.found){result.replaceChildren(make('h2','No path within seven degrees'),make('p','No path in the selected dataset.'));return}
- result.replaceChildren(make('h2',p.degrees+' degree'+(p.degrees===1?'':'s')),make('div',p.start.name,'artist'));
- for(const s of p.steps){const edge=make('div',s.kind+' · '+s.title,'edge');edge.append(link(s.source));result.append(edge,make('div',s.to.name,'artist'))}
+const MAP_LIMIT=240;
+const expanded=new Map(),expanding=new Set();
+function clearGraph(){
+ if(network){network.destroy();network=undefined}
+ expanded.clear();expanding.clear();$('network').hidden=true;$('map-tools').hidden=true;$('detail').replaceChildren()
 }
-function renderNetwork(p){
- $('result').replaceChildren(make('h2',p.root.name),make('p',p.steps.length+' of '+p.total.toLocaleString()+' direct connections. Select an edge for evidence; select an artist to explore it.'));
- const elements=[{data:{id:p.root.id,label:p.root.name,root:true}}];
- p.steps.forEach((s,i)=>{elements.push({data:{id:s.to.id,label:s.to.name}},{data:{id:'e'+i,source:p.root.id,target:s.to.id,kind:s.kind,title:s.title,url:s.source}})});
- $('network').hidden=false;
+function renderPath(p){
+ const result=$('result');if(!p.found){result.replaceChildren(make('h2','No connection found'),make('p','No path within the search limit in the selected dataset.'));return}
+ result.replaceChildren(make('h2','Connection path'),make('div',p.start.name,'artist'));
+ let previous=p.start;
+ const elements=[node(previous,true)];
+ for(const s of p.steps){
+  const line=make('div',s.kind+' · '+s.title,'edge');line.append(link(s.source));result.append(line,make('div',s.to.name,'artist'));
+  elements.push(node(s.to),edge(previous.id,s));previous=s.to;
+ }
+ createMap(elements,'breadthfirst');
+}
+const node=(a,root=false)=>({data:{id:a.id,label:a.name,...(root?{root:true}:{})}});
+const edge=(from,s)=>({data:{id:'edge:'+JSON.stringify([from,s.to.id].sort()),source:from,target:s.to.id,kind:s.kind,title:s.title,url:s.source}});
+function updateCount(){$('map-count').textContent=network.nodes().length+' artists · '+network.edges().length+' links'}
+function createMap(elements,layout='cose'){
+ $('network').hidden=false;$('map-tools').hidden=false;
  const color=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
- network=cytoscape({container:$('network'),elements,layout:{name:'concentric',concentric:n=>n.data('root')?2:1,levelWidth:()=>1,minNodeSpacing:22},style:[
- {selector:'node',style:{label:'data(label)','font-size':10,'background-color':color,'text-valign':'bottom','text-margin-y':5,color:getComputedStyle(document.body).color,width:14,height:14}},
- {selector:'node[root]',style:{width:27,height:27,'font-weight':'bold'}},
- {selector:'edge',style:{width:1.5,'line-color':'#888','curve-style':'straight'}}
+ network=cytoscape({container:$('network'),elements,layout:{name:layout,animate:false},style:[
+  {selector:'node',style:{label:'data(label)','font-size':10,'background-color':color,'text-valign':'bottom','text-margin-y':5,color:getComputedStyle(document.body).color,width:14,height:14}},
+  {selector:'node[root]',style:{width:27,height:27,'font-weight':'bold'}},
+  {selector:'edge',style:{width:1.5,'line-color':'#888','curve-style':'straight'}},
+  {selector:'edge[kind = "cover"], edge[kind = "cover-reference"], edge[kind = "tribute"]',style:{'line-style':'dashed'}}
  ]});
  network.on('tap','edge',e=>{const d=e.target.data();$('detail').replaceChildren(make('span',d.kind+' · '+d.title+' '),link(d.url))});
- network.on('tap','node',e=>{const d=e.target.data();if(d.root)return;$('from').value=d.label;$('from').dataset.id=d.id;$('search').requestSubmit()});
+ network.on('tap','node',e=>{const d=e.target.data();showArtist(d)});
+ updateCount();
 }
-function setMode(next){mode=next;requestVersion++;$('submit').disabled=false;clearGraph();$('destination').hidden=mode==='explore';$('submit').textContent=mode==='path'?'Find path':'Explore';for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===mode));$('result').replaceChildren()}
+function showArtist(d){
+ const done=expanded.get(d.id)===null;
+ const button=make('button',done?'All connections loaded':expanded.has(d.id)?'Load more connections':'Expand connections');
+ button.disabled=done||expanding.has(d.id)||network.nodes().length>=MAP_LIMIT;button.addEventListener('click',()=>expandArtist(d,button));
+ const source=link('https://musicbrainz.org/artist/'+encodeURIComponent(d.id));source.textContent='MusicBrainz';
+ $('detail').replaceChildren(make('strong',d.label+' '),button,document.createTextNode(' '),source);
+}
+function appendNeighborhood(p){
+ let added=0,limited=false;
+ network.batch(()=>{
+  for(const s of p.steps){
+   if(network.getElementById(s.to.id).empty()){
+    if(network.nodes().length>=MAP_LIMIT){limited=true;continue}
+    network.add(node(s.to));added++;
+   }
+   const e=edge(p.root.id,s);
+   if(network.getElementById(e.data.id).empty())network.add(e);
+  }
+ });
+ updateCount();
+ return {added,limited};
+}
+async function expandArtist(d,button){
+ if(!network||expanded.get(d.id)===null||expanding.has(d.id))return;
+ const current=network,version=requestVersion;button.disabled=true;button.textContent='Expanding…';expanding.add(d.id);
+ try{
+  const p=await api('/api/neighbors',{artist:d.id,strict:$('strict').checked,offset:expanded.get(d.id)||0});
+  if(network!==current||version!==requestVersion)return;
+  const {added,limited}=appendNeighborhood(p);
+  expanded.set(d.id,p.next);if(added)network.layout({name:'cose',animate:false,fit:false}).run();
+  expanding.delete(d.id);showArtist(d);$('detail').append(make('p',p.total.toLocaleString()+' direct connections; '+added+' new artists mapped.'+(limited?' Map limit reached.':'')));
+ }catch(e){if(network===current){button.disabled=false;button.textContent='Retry expansion';$('detail').append(make('p',e.message))}}finally{if(network===current)expanding.delete(d.id)}
+}
+function renderNetwork(p){
+ $('result').replaceChildren(make('h2',p.root.name),make('p',p.steps.length+' of '+p.total.toLocaleString()+' direct connections shown. Select an artist to expand it; select a link for evidence.'));
+ createMap([node(p.root,true)],'grid');
+ appendNeighborhood(p);expanded.set(p.root.id,p.next);
+ network.layout({name:'concentric',concentric:n=>n.data('root')?2:1,levelWidth:()=>1,minNodeSpacing:22,animate:false}).run();
+}
+$('fit').addEventListener('click',()=>network?.fit(undefined,25));
+$('export').addEventListener('click',()=>{
+ if(!network)return;
+ const url=URL.createObjectURL(new Blob([JSON.stringify(network.elements().jsons(),null,2)],{type:'application/json'}));
+ const a=document.createElement('a');a.href=url;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+});
+function setMode(next){mode=next;requestVersion++;$('submit').disabled=false;clearGraph();$('destination').hidden=mode==='explore';$('submit').textContent=mode==='path'?'Find connections':'Explore';for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===mode));$('result').replaceChildren()}
 for(const b of document.querySelectorAll('[data-mode]'))b.addEventListener('click',()=>setMode(b.dataset.mode));
 $('search').addEventListener('submit',async e=>{
  e.preventDefault();const version=++requestVersion,button=$('submit'),result=$('result');button.disabled=true;clearGraph();result.replaceChildren(make('p','Searching…'));
@@ -68,3 +126,5 @@ if(staticMode){
  $('scope').addEventListener('change',()=>{for(const close of closeOptions)close();for(const k of ['from','to'])delete $(k).dataset.id;setMode(mode);refreshStats()});
 }
 refreshStats();
+
+$('strict').addEventListener('change',()=>setMode(mode));

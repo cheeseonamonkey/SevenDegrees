@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-agent='SevenDegrees/0.1 (https://github.com/cheeseonamonkey/SevenDegrees)'
+agent='MusicAtlas/0.1 (https://github.com/cheeseonamonkey/MusicAtlas)'
 query() {
  curl -fsSG --retry 1 --max-time 30 -A "$agent" https://query.wikidata.org/sparql --data-urlencode "query=$1" -H 'Accept: application/sparql-results+json'
 }

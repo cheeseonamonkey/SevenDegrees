@@ -6,9 +6,9 @@
 @prefix mo: <http://purl.org/ontology/mo/> .
 
 <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl> a owl:Ontology ;
-  rdfs:label "SevenDegrees Music Knowledge Graph" ;
+  rdfs:label "MusicAtlas Knowledge Graph" ;
   owl:versionInfo "2.0" ;
-  owl:imports <https://raw.githubusercontent.com/cheeseonamonkey/SevenDegrees/main/ontology/relationship-types.ttl> .
+  owl:imports <https://raw.githubusercontent.com/cheeseonamonkey/MusicAtlas/main/ontology/relationship-types.ttl> .
 
 sd:Artist a owl:Class ; rdfs:subClassOf mo:MusicArtist .
 sd:Recording a owl:Class ; rdfs:subClassOf mo:Signal .

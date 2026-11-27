@@ -30,7 +30,7 @@ stats={"artist":len(g["artists"]),"fact":g["facts"],"directed_edges":len(g["adja
 manifest={"api_version":1,"graph_version":g["version"],"scope":"priority" if release else "local-snapshot",
           "graph":{"url":"graph.json.gz","encoding":"gzip","bytes":src.stat().st_size,"sha256":hashlib.file_digest(src.open("rb"),"sha256").hexdigest()},
           "stats":stats,"relations":"relations.json","ontology":"ontology/music.ttl",
-          "full_corpus":"https://github.com/cheeseonamonkey/SevenDegrees/releases/tag/corpus-mb-20261125-002239"}
+          "full_corpus":"https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239"}
 if release:manifest["release"]=release
 temp=pathlib.Path(sys.argv[4])
 if (temp/"stats.txt").exists():

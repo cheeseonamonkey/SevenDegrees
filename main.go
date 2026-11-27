@@ -12,7 +12,7 @@ func run(args []string) error {
 	strict := flags.Bool("strict", false, "exclude covers and tributes")
 	listen := flags.String("listen", "127.0.0.1:8077", "web listen address")
 	priority := flags.String("priority", "", "select ranked artist or recording IDs from snapshot")
-	max := flags.Int("max", 7, "maximum degrees")
+	max := flags.Int("max", 12, "maximum path length")
 	if e := flags.Parse(args); e != nil {
 		return e
 	}
@@ -67,8 +67,8 @@ func run(args []string) error {
 			fmt.Printf("%s: %d facts\n", p, n)
 		}
 	case "find":
-		if len(a) != 3 || *max < 0 || *max > 7 {
-			return fmt.Errorf("find requires two artists and max 0–7")
+		if len(a) != 3 || *max < 0 || *max > 32 {
+			return fmt.Errorf("find requires two artists and max 0–32")
 		}
 		start, e := resolve(db, a[1])
 		if e != nil {
@@ -83,9 +83,9 @@ func run(args []string) error {
 			return e
 		}
 		if !ok {
-			return fmt.Errorf("no path within %d degrees in this corpus", *max)
+			return fmt.Errorf("no path within %d links in this corpus", *max)
 		}
-		fmt.Printf("%d degrees: %s\n", len(steps), label(db, start))
+		fmt.Printf("Connection path (%d links): %s\n", len(steps), label(db, start))
 		for _, s := range steps {
 			fmt.Printf("  → %s [%s: %s]\n    %s\n", label(db, s.To), s.Kind, s.Title, s.Source)
 		}

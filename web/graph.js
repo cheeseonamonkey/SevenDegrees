@@ -23,14 +23,15 @@ function localGraph(data) {
   return found.sort((a,b)=>Number(norm(artists[b].name)===q)-Number(norm(artists[a].name)===q)||artists[a].name.length-artists[b].name.length||artists[a].name.localeCompare(artists[b].name)||artists[a].id.localeCompare(artists[b].id)).slice(0,20).map(simple);
  };
  const step=(to,w)=>{const [k,t,s]=evidence[w];return {to:simple(to),kind:strings[k],title:strings[t],source:strings[s]}};
- const neighbors=(name,strict=false,limit=40)=>{
+ const neighbors=(name,strict=false,offset=0)=>{
+  if(!Number.isInteger(offset)||offset<0)throw Error("Invalid neighbor offset");
   const root=resolve(name),seen=new Set(),steps=[];
   for(let j=offsets[root];j<offsets[root+1];j+=2){
    const to=adjacency[j],w=adjacency[j+1];
    if(seen.has(to)||(strict&&!evidence[w][3]))continue;
-   seen.add(to);if(steps.length<limit)steps.push(step(to,w));
+   seen.add(to);if(seen.size>offset&&steps.length<40)steps.push(step(to,w));
   }
-  return {root:simple(root),total:seen.size,steps};
+  return {root:simple(root),total:seen.size,steps,next:offset+steps.length<seen.size?offset+steps.length:null};
  };
  const path=(from,to,strict)=>{
   const start=resolve(from),end=resolve(to);
@@ -40,7 +41,7 @@ function localGraph(data) {
   // and avoid materializing edge objects until a path is reconstructed.
   const front=i=>{const prev=new Int32Array(artists.length).fill(-1);prev[i]=i;return {nodes:[i],prev,via:new Int32Array(artists.length),depth:0}};
   const left=front(start),right=front(end);
-  while(left.nodes.length&&right.nodes.length&&left.depth+right.depth<7){
+  while(left.nodes.length&&right.nodes.length&&left.depth+right.depth<12){
    const [a,b]=left.nodes.length<=right.nodes.length?[left,right]:[right,left];
    const next=[];let meet=-1;
    outer:for(const i of a.nodes){

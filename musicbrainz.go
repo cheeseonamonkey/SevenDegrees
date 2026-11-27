@@ -94,7 +94,7 @@ func fetch(ids []string, out io.Writer) error {
 			if e != nil {
 				return e
 			}
-			req.Header.Set("User-Agent", "SevenDegrees/0.1 (https://github.com/cheeseonamonkey/SevenDegrees)")
+			req.Header.Set("User-Agent", "MusicAtlas/0.1 (https://github.com/cheeseonamonkey/MusicAtlas)")
 			resp, e := client.Do(req)
 			if e != nil {
 				return e

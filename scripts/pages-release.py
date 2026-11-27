@@ -10,10 +10,10 @@ import urllib.request
 release,output=sys.argv[1],pathlib.Path(sys.argv[2])
 if not re.fullmatch(r"corpus-mb-\d{8}-\d{6}",release):
     raise ValueError("invalid release tag")
-base="https://github.com/cheeseonamonkey/SevenDegrees/releases/download/"+release+"/"
+base="https://github.com/cheeseonamonkey/MusicAtlas/releases/download/"+release+"/"
 
 def download(name, optional=False):
-    request=urllib.request.Request(base+name,headers={"User-Agent":"SevenDegrees-Pages"})
+    request=urllib.request.Request(base+name,headers={"User-Agent":"MusicAtlas-Pages"})
     try:
         r=urllib.request.urlopen(request,timeout=120)
     except urllib.error.HTTPError as e:

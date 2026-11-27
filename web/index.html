@@ -3,24 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SevenDegrees</title>
+<title>MusicAtlas</title>
 <link rel="stylesheet" href="style.css">
 <script src="cytoscape.min.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body>
 <main>
-<header><h1>SevenDegrees</h1><p>Musical connections, with evidence.</p><small id="stats"></small></header>
-<nav aria-label="Tools"><button type="button" data-mode="path" aria-pressed="true">Find a path</button><button type="button" data-mode="explore" aria-pressed="false">Explore graph</button><a href="api/v1/manifest.json" id="api-link" hidden>Data API</a></nav>
+<header><h1>MusicAtlas</h1><p>Explore the relationships behind music.</p><small id="stats"></small></header>
+<nav aria-label="Tools"><button type="button" data-mode="explore" aria-pressed="true">Explore map</button><button type="button" data-mode="path" aria-pressed="false">Find connections</button><a href="api/v1/manifest.json" id="api-link" hidden>Data API</a></nav>
 <div id="scope-row" hidden><label>Dataset <select id="scope"><option value="priority">Popular artists</option><option value="full">Full graph (large download)</option></select></label><small id="scope-note"></small></div>
 <form id="search">
-<div class="fields"><div class="field"><label for="from">Artist</label><input id="from" value="Tom Morello" autocomplete="off" required><div id="from-options" class="options"></div></div><div class="field" id="destination"><label for="to">Destination</label><input id="to" value="David Bowie" autocomplete="off"><div id="to-options" class="options"></div></div></div>
-<div class="actions"><label><input type="checkbox" id="strict"> Exclude covers and tributes</label><button id="submit" type="submit">Find path</button></div>
+<div class="fields"><div class="field"><label for="from">Artist</label><input id="from" value="Tom Morello" autocomplete="off" required><div id="from-options" class="options"></div></div><div class="field" id="destination" hidden><label for="to">Destination</label><input id="to" value="David Bowie" autocomplete="off"><div id="to-options" class="options"></div></div></div>
+<div class="actions"><label><input type="checkbox" id="strict"> Exclude covers and tributes</label><button id="submit" type="submit">Explore</button></div>
 </form>
-<section id="result" aria-live="polite"><p>Choose two artists or explore their connections.</p></section>
+<section id="result" aria-live="polite"><p>Start with an artist and expand their network.</p></section>
 <div id="network" hidden aria-label="Interactive graph"></div>
+<div id="map-tools" hidden><button type="button" id="fit">Fit map</button> <button type="button" id="export">Export map</button> <small id="map-count"></small></div>
 <section id="detail" aria-live="polite"></section>
-<footer><a href="https://github.com/cheeseonamonkey/SevenDegrees">Source code</a> · <a href="https://github.com/cheeseonamonkey/SevenDegrees/releases/tag/corpus-mb-20261125-002239">Full corpus</a></footer>
+<footer><a href="https://github.com/cheeseonamonkey/MusicAtlas">Source code</a> · <a href="https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239">Full corpus</a></footer>
 </main>
 </body>
 </html>

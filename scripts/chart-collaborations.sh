@@ -7,7 +7,7 @@ jq -r '[.recordings[]|select((.artist_mbids|length)>1)|.recording_mbid|select(ty
 split -l 20 "$tmp/ids" "$tmp/batch-"
 for batch in "$tmp"/batch-*; do
  q=$(awk '{if(NR>1)printf " OR ";printf "rid:%s",$0}' "$batch")
- curl -fsSG --retry 2 --max-time 15 -A 'SevenDegrees/0.1 (https://github.com/cheeseonamonkey/SevenDegrees)' https://musicbrainz.org/ws/2/recording --data-urlencode "query=$q" -d fmt=json -d limit=100 |
+ curl -fsSG --retry 2 --max-time 15 -A 'MusicAtlas/0.1 (https://github.com/cheeseonamonkey/MusicAtlas)' https://musicbrainz.org/ws/2/recording --data-urlencode "query=$q" -d fmt=json -d limit=100 |
    ./degrees normalize >> "$tmp/facts"
  sleep 1.1
 done

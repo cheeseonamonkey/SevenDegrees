@@ -7,7 +7,7 @@ using VDS.RDF.Query;
 using VDS.RDF.Shacl;
 using VDS.RDF.Writing;
 
-var root = new RootCommand("SevenDegrees read-only semantic tools");
+var root = new RootCommand("MusicAtlas read-only semantic tools");
 var data = new Argument<FileInfo>("data");
 var queryFile = new Argument<FileInfo>("query");
 var query = new Command("query", "Execute a local SPARQL query (SELECT, ASK, CONSTRUCT, DESCRIBE)");

@@ -36,7 +36,7 @@ async function graphClient(manifestURL) {
   switch(path){
    case '/api/artists':return g.search(params.q);
    case '/api/path':return g.path(params.from,params.to,params.strict);
-   case '/api/neighbors':return g.neighbors(params.artist,params.strict);
+   case '/api/neighbors':return g.neighbors(params.artist,params.strict,params.offset);
    default:throw Error('Unknown graph operation');
   }
  };

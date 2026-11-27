@@ -1,6 +1,6 @@
-# SevenDegrees
+# MusicAtlas
 
-A musical relationship corpus & degrees-of-separation engine. The corpus is the project; the game is a consumer.
+An open music relationship atlas for exploring artists, collaborators, covers, credits and the networks between them. Inspired by degrees of separation; designed for discovery rather than scoring.
 
 Recording credits, live performances, covers, tributes, group membership and production credits are represented as evidence-bearing facts, not speculative artist-to-artist links.
 
@@ -61,7 +61,7 @@ a fresh database after replacing shards, so removed facts do not remain indexed.
 
 ## Knowledge graph / OWL
 
-The existing game index is one projection of a broader music knowledge graph.
+The artist relationship index is one projection of a broader music knowledge graph.
 See [ontology](ontology/music.ttl) and [RDF snapshots](snapshots/README.md).
 
 ```sh
@@ -82,11 +82,11 @@ N-Triples shards are data, and SQLite remains the small traversal projection.
 - [x] Bulk MusicBrainz dump adapter, including artist relationships and work-level credits
 - [x] Explicit work/recording references for covers, distinguished from confirmed originals
 - [x] OWL vocabulary, RDF export, streaming JSON dump projection, first instrument snapshot
-- [ ] Bulk RDF shard publication, source-specific license manifests and graph-to-game projection
+- [ ] Bulk RDF shard publication, source-specific license manifests and graph-to-explorer projection
 - [ ] Provider alias ingestion, richer disambiguation and weighted alternatives
 - [x] Web path explorer and HTTP API
 - [x] Public Pages deployment, graph explorer and read-only MCP adapter
-- [ ] Daily puzzle and incremental full-graph loading
+- [ ] Incremental full-graph loading and richer relationship exploration
 
 No full MusicBrainz mirror yet. The current traversal is bidirectional BFS; it reports shortest paths within the imported corpus only.
 
@@ -116,13 +116,13 @@ seed remains available throughout the build.
 
 ## GitHub Pages and static data API
 
-[Explore SevenDegrees](https://cheeseonamonkey.github.io/SevenDegrees/).
+[Explore MusicAtlas](https://cheeseonamonkey.github.io/MusicAtlas/).
 
 The full corpus contains **1,595,768 artists, 7,744,208 facts and 22,789,513
 participant relationships**. Pages defaults to a smaller popularity-first
 projection (93,472 artists, 373,708 facts). The full projection is an optional
 large download once its verified export is published. Neither projection
-discards source facts from the canonical [release](https://github.com/cheeseonamonkey/SevenDegrees/releases/tag/corpus-mb-20261125-002239).
+discards source facts from the canonical [release](https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239).
 
 Static API: `api/v1/manifest.json`, `api/v1/stats.json`, `api/v1/relations.json`,
 `api/v1/ontology/`, and the gzip graph URL/parts advertised by the manifest.
@@ -130,7 +130,7 @@ The format is integer-indexed CSR adjacency with shared evidence and string
 dictionaries. Each pair retains one witness per strict-mode eligibility class,
 not every recording. The full corpus retains the other evidence.
 A vanilla JS worker uses the shared graph client for path and neighbor queries;
-Cytoscape.js renders the bounded interactive neighborhood. The API serves static
+Cytoscape.js renders an expandable map (up to 240 artists per view), with paginated direct connections and JSON export. Finding paths is an optional discovery tool, not a score. The API serves static
 files, not server-side dynamic SPARQL or arbitrary RPC.
 
 ### Read-only MCP
@@ -141,7 +141,7 @@ npm run mcp
 ```
 
 Configure a local MCP client with command `node` and argument
-`/absolute/path/to/SevenDegrees/mcp.mjs`. The official SDK provides stdio
+`/absolute/path/to/MusicAtlas/mcp.mjs`. The official SDK provides stdio
 transport. Tools: `music_stats`, `music_search`, `music_path`,
 `music_neighbors`. Set `scope: "full"` when the full graph is published.
 The server uses the same static graph client as the website; it requires no
@@ -160,7 +160,7 @@ existing index read-only. This is the initial C# migration slice, not a second
 ingestion/traversal engine. The full RDF corpus is not loaded into memory by
 default. Relation rules in `ontology/relations.json` drive validation in Go
 and the Python bulk importer, and generate OWL types and SHACL constraints via
-`python3 scripts/schema.py`. Existing RDF predicates remain compatible.
+`python3 scripts/schema.py`. Existing RDF predicates remain compatible. The original SevenDegrees namespace is intentionally retained as a stable identifier; renaming the project does not invalidate existing RDF data.
 
 ### Build and publish
 
