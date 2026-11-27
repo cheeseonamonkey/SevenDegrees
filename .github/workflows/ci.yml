@@ -19,8 +19,9 @@ jobs:
       - run: dotnet build semantic --no-restore
       - run: dotnet run --project semantic --no-build -- validate snapshots/seed.nt ontology/shapes.ttl
       - run: dotnet run --project semantic --no-build -- query snapshots/seed.nt queries/relationship-counts.rq
+      - uses: astral-sh/setup-uv@v6
       - run: scripts/pages.sh .cache/pages
-      - run: node scripts/pages-test.js .cache/pages/api/v1/graph.json.gz
+      - run: node scripts/pages-test.js .cache/pages
       - run: go build -o degrees .
       - run: |
           ./degrees import corpus/*.jsonl

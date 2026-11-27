@@ -13,12 +13,12 @@ const call=async(path,params)=>{
  }catch(e){return {isError:true,content:[{type:'text',text:e.message}]}}
 };
 const server=new McpServer({name:'MusicAtlas',version:'0.1.0'});
-const scope=z.enum(['priority','full']).default('priority');
 const artist=z.string().min(1).max(200);
 const strict=z.boolean().default(false);
 const register=(name,description,inputSchema,path)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}},args=>call(path,args));
-register('music_stats','Counts for the selected graph snapshot.',{scope},'/api/stats');
-register('music_search','Find artist names and stable IDs.',{q:artist,scope},'/api/artists');
-register('music_path','Find a source-backed connection path.',{from:artist,to:artist,strict,scope},'/api/path');
-register('music_neighbors','Explore direct connections and their evidence, 40 at a time.',{artist,strict,scope,offset:z.number().int().nonnegative().default(0)},'/api/neighbors');
+register('music_stats','Counts for the full indexed corpus.',{},'/api/stats');
+register('music_search','Find artist names and stable IDs.',{q:artist},'/api/artists');
+register('music_path','Find a source-backed connection path.',{from:artist,to:artist,strict},'/api/path');
+register('music_neighbors','Explore direct connections and their evidence, 40 at a time.',{artist,strict,offset:z.number().int().nonnegative().default(0)},'/api/neighbors');
+register('music_evidence','Read all original evidence for an artist or shared records for two artists, paginated.',{artist,other:artist.optional(),offset:z.number().int().nonnegative().default(0)},'/api/evidence');
 await server.connect(new StdioServerTransport());

@@ -13,22 +13,43 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      available: ${{ steps.release.outputs.available }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check static index release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=$(gh release view corpus-mb-20261125-002239 --json assets --jq '.assets[].name')
+          if grep -qx web-range-index.tar <<< "$assets" && grep -qx web-range-index.sha256 <<< "$assets"; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Full static index has not yet been published."
+          fi
       - uses: actions/setup-go@v5
+        if: steps.release.outputs.available == 'true'
         with:
           go-version-file: go.mod
       - run: go test ./...
+        if: steps.release.outputs.available == 'true'
       - run: scripts/pages.sh .cache/pages
+        if: steps.release.outputs.available == 'true'
         env:
           PAGES_RELEASE: corpus-mb-20261125-002239
-      - run: node scripts/pages-test.js .cache/pages/api/v1/graph.json.gz
+      - run: node scripts/pages-test.js .cache/pages
+        if: steps.release.outputs.available == 'true'
       - uses: actions/configure-pages@v5
+        if: steps.release.outputs.available == 'true'
       - uses: actions/upload-pages-artifact@v3
+        if: steps.release.outputs.available == 'true'
         with:
           path: .cache/pages
   deploy:
     needs: build
+    if: needs.build.outputs.available == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

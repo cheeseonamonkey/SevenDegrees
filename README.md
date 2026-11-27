@@ -119,19 +119,38 @@ seed remains available throughout the build.
 [Explore MusicAtlas](https://cheeseonamonkey.github.io/MusicAtlas/).
 
 The full corpus contains **1,595,768 artists, 7,744,208 facts and 22,789,513
-participant relationships**. Pages defaults to a smaller popularity-first
-projection (93,472 artists, 373,708 facts). The full projection is an optional
-large download once its verified export is published. Neither projection
-discards source facts from the canonical [release](https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239).
+participant relationships**. The website uses the entire corpus without
+downloading the entire graph. No smaller default dataset or download switch.
 
-Static API: `api/v1/manifest.json`, `api/v1/stats.json`, `api/v1/relations.json`,
-`api/v1/ontology/`, and the gzip graph URL/parts advertised by the manifest.
-The format is integer-indexed CSR adjacency with shared evidence and string
-dictionaries. Each pair retains one witness per strict-mode eligibility class,
-not every recording. The full corpus retains the other evidence.
-A vanilla JS worker uses the shared graph client for path and neighbor queries;
-Cytoscape.js renders an expandable map (up to 240 artists per view), with paginated direct connections and JSON export. Finding paths is an optional discovery tool, not a score. The API serves static
-files, not server-side dynamic SPARQL or arbitrary RPC.
+The [static manifest](https://cheeseonamonkey.github.io/MusicAtlas/api/v1/manifest.json)
+describes immutable data files and compressed indexes. Every data block is an
+independent gzip member. A section's index stores its pack number, byte offset,
+and compressed length; clients request only that byte range (HTTP 206).
+Packs are capped at 16 MiB unless a single indivisible block is larger.
+
+| Section | Contents |
+| --- | --- |
+| artist | Stable IDs, names and aliases |
+| search | Name and word-prefix index (ranked by exact match and popularity) |
+| topology | Integer adjacency and policy bits for pathfinding |
+| witness | A source-backed witness per projected relationship |
+| fact | Every canonical source fact, including all original participant names and roles |
+| incidence | Complete artist-to-fact reverse index |
+
+The topology is a traversal projection, **not the evidence corpus**. All facts
+remain available through paginated artist and shared-record queries. The build
+round-trips every fact against the canonical release and verifies incidence.
+The client coalesces close ranges, deduplicates in-flight requests, uses eight
+concurrent reads and an 8 MiB compressed-weight LRU cache. Bidirectional BFS
+reads topology first and retrieves artist names/evidence only for its result.
+The vanilla JS worker keeps the interface responsive. Cytoscape.js displays
+expandable maps (up to 240 artists per view), with pagination and JSON export.
+
+This is a read-only static file API, not a server accepting arbitrary SPARQL
+or dynamic RPC requests. The shared graph client provides logical search,
+neighbor, path and evidence operations over those files. Search matches name
+and word prefixes, not arbitrary infixes. Large or unsuccessful path searches
+can still read many topology blocks; paths are bounded to 12 links.
 
 ### Read-only MCP
 
@@ -141,11 +160,11 @@ npm run mcp
 ```
 
 Configure a local MCP client with command `node` and argument
-`/absolute/path/to/MusicAtlas/mcp.mjs`. The official SDK provides stdio
-transport. Tools: `music_stats`, `music_search`, `music_path`,
-`music_neighbors`. Set `scope: "full"` when the full graph is published.
-The server uses the same static graph client as the website; it requires no
-credentials or writes. Pages itself cannot host a dynamic MCP transport.
+`/absolute/path/to/MusicAtlas/mcp.mjs`. Tools: `music_stats`,
+`music_search`, `music_path`, `music_neighbors`, `music_evidence`.
+The official SDK provides stdio transport, using the same lazy static client
+as the website. No credentials or writes. Pages itself cannot host a dynamic
+MCP transport.
 
 ### Semantic tools (.NET 10)
 
@@ -165,12 +184,23 @@ and the Python bulk importer, and generate OWL types and SHACL constraints via
 ### Build and publish
 
 ```sh
+# Local seed fixture and HTTP range regression tests
+scripts/pages.sh .cache/pages
+node scripts/pages-test.js .cache/pages
+
+# Full static index (requires the canonical bulk corpus and graph projection)
+bulk=bulk/20261125-002239
+./degrees -db "$bulk/graph.sqlite" export-static | gzip -n -6 > .cache/full/graph.json.gz
+uv run --no-project --with orjson==3.11.4 scripts/static-index.py \
+  .cache/full/graph.json.gz .cache/range/full --seed "$bulk/seed" \
+  --bulk "$bulk/shards" --stats "$bulk/stats.txt"
+scripts/publish-range.sh .cache/range/full
+
+# Assemble Pages from the verified release asset
 PAGES_RELEASE=corpus-mb-20261125-002239 scripts/pages.sh .cache/pages
-./degrees -db bulk/20261125-002239/graph.sqlite export-static | gzip -n -6 > .cache/full/graph.json.gz
-scripts/publish-full.sh .cache/full/graph.json.gz
 ```
 
-Actions verifies release checksums before building. Full export publication
-verifies counts and splits the compressed stream into bounded assets, then
-triggers Pages deployment. The full snapshot may require desktop-class memory;
-the priority snapshot remains the mobile default.
+Publication verifies exact round-trip and incidence, checks the full archive
+size, and exercises the HTTP range client before uploading the static index
+and SHA256. Actions verifies the archive digest and deploys immutable
+versioned files. The build archive is downloaded by CI, never by the browser.
