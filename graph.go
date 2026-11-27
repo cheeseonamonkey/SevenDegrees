@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"compress/gzip"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -74,6 +75,10 @@ func valid(f Fact) error {
 			if role != "performer" && role != "featured" && role != "producer" {
 				return fmt.Errorf("invalid role %s", role)
 			}
+		}
+	case "cover-reference":
+		if roles["performer"] == 0 || roles["reference"] == 0 || len(roles) != 2 {
+			return fmt.Errorf("invalid cover-reference roles: %s", f.ID)
 		}
 	case "cover", "tribute":
 		if roles["performer"] == 0 || roles["original"] == 0 || len(roles) != 2 {
@@ -164,7 +169,7 @@ func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
  JOIN fact f ON f.id=a.fact
  WHERE a.artist=? AND (
  (f.kind IN ('recording','performance') AND (a.role<>'producer' OR b.role<>'producer'))
- OR (f.kind IN ('cover','tribute','membership') AND a.role<>b.role))
+ OR (f.kind IN ('cover','cover-reference','tribute','membership') AND a.role<>b.role))
  ORDER BY b.artist, CASE f.kind WHEN 'recording' THEN 0 WHEN 'performance' THEN 1 ELSE 2 END,f.id,a.role,b.role`, id)
 	if e != nil {
 		return nil, e
@@ -177,7 +182,7 @@ func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
 		if e = rows.Scan(&s.From, &s.To, &s.Kind, &s.Title, &s.Source, &a, &b); e != nil {
 			return nil, e
 		}
-		if strict && (s.Kind == "cover" || s.Kind == "tribute") {
+		if strict && (s.Kind == "cover" || s.Kind == "cover-reference" || s.Kind == "tribute") {
 			continue
 		}
 		if s.Kind == "recording" || s.Kind == "performance" {
@@ -249,5 +254,13 @@ func loadFile(db *sql.DB, path string) (int, error) {
 		return 0, e
 	}
 	defer f.Close()
+	if strings.HasSuffix(path, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return 0, err
+		}
+		defer gz.Close()
+		return ingest(db, gz)
+	}
 	return ingest(db, f)
 }

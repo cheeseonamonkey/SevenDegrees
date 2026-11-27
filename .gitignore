@@ -2,3 +2,6 @@
 /*.sqlite*
 
 /.cache/
+
+__pycache__/
+/bulk/

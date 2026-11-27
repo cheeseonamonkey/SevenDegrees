@@ -88,3 +88,27 @@ N-Triples shards are data, and SQLite remains the small traversal projection.
 - [ ] Daily puzzle, public web deployment and RPC
 
 No full MusicBrainz mirror yet. The current traversal is single-source BFS; it reports shortest paths within the imported corpus only.
+
+## Bulk relationship corpus
+
+The full MusicBrainz CC0 PostgreSQL export is staged one table at a time.
+Only relationship evidence is emitted; releases and solo recordings are not
+published as discographies. The pipeline merges multi-artist recording credits,
+performer/producer credits, memberships, explicit album covers, and marked
+song covers with a uniquely credited unflagged reference version. The latter
+are explicitly `cover-reference`, not claims of original authorship; strict
+mode excludes them. Repeated title/role/artist sets are collapsed, and
+placeholder artists and oversized recording credits are excluded.
+
+```sh
+scripts/bulk.sh 20261125-002239 --publish
+# Outputs: bulk/<version>/shards/, manifest.json, graph.sqlite, stats.txt
+# --publish uploads compressed facts and checksums to a GitHub release.
+# Resume by rerunning the same command; downloads and completed staging
+# tables are reused. The original seed is frozen at the beginning.
+```
+
+Gzip JSONL is directly supported by `degrees import`. Bulk outputs and cache
+are excluded from Git history. The source archive is checksum-verified.
+The full graph is built fresh, then checked before publication. The current
+seed remains available throughout the build.

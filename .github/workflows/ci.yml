@@ -10,6 +10,7 @@ jobs:
           go-version-file: go.mod
       - run: go test ./...
       - run: go vet ./...
+      - run: python3 scripts/bulk_test.py
       - run: go build -o degrees .
       - run: |
           ./degrees import corpus/*.jsonl
