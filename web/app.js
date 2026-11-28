@@ -27,13 +27,13 @@ async function api(path,params={},options={}){
 
 const model=new AtlasMap(),pages=new Map();
 const MAX_NODES=matchMedia('(max-width:760px)').matches?240:500;
-let mode='explore',dimension='2D',operation,inspection,routeSet=[],routeIndex=0,seed=0;
+let mode='explore',dimension='2D',operation,inspection,routeSet=[],routeIndex=0,seed=0,rootID=null,rootTotal=0,selectedID=null,refreshTimer;
 const viewer=new MapViewer($('network'),{onNode:selectNode,onLink:selectLink,onFallback:()=>{dimension='2D';syncDimension()}});
 const policy=()=>Object.fromEntries(Array.from(document.querySelectorAll('#filter-options input'),e=>[e.name,e.checked]));
 const generation=()=>({seed,ranking:$('ranking').value,variation:Number($('variation').value),fraction:Number($('fraction').value),decay:Number($('decay').value),depth:Number($('depth').value),maxBranch:Number($('max-branch').value),maxConnections:Math.min(MAX_NODES-1,Number($('max-connections').value))});
 function status(text='',busy=false){$('status').replaceChildren(...(text?[busy?spinner(text):el('span',text)]:[]))}
 function begin(text){
- operation?.abort();operation=new AbortController();const signal=operation.signal;
+ clearTimeout(refreshTimer);operation?.abort();operation=new AbortController();const signal=operation.signal;
  status(text,true);$('status').append(button('Cancel',()=>{operation.abort();$('submit').disabled=false;status('Cancelled')}));
  $('submit').disabled=true;
  return {signal,progress:p=>{if(!signal.aborted){const n=$('status').querySelector('.loading span:last-child');if(n)n.textContent=p.message+(p.visited?' · '+p.visited.toLocaleString():'')}}};
@@ -41,13 +41,16 @@ function begin(text){
 function finish(opt,text=''){if(!opt.signal.aborted){$('submit').disabled=false;status(text)}}
 function inspect(){inspection?.abort();inspection=new AbortController();$('records').replaceChildren();return inspection}
 function clearMap(){
+ clearTimeout(refreshTimer);rootID=selectedID=null;rootTotal=0;$('shuffle').disabled=true;$('generation-summary').textContent='';$('settings-summary').textContent='';
  inspect();dimensionRequest++;model.clear();pages.clear();routeSet=[];viewer.destroy();$('network').hidden=true;$('map-tools').hidden=true;$('export').disabled=true;$('detail').replaceChildren();$('result').replaceChildren()
 }
 function syncDimension(){for(const b of $('dimension').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.dimension===dimension))}
-function draw(fit=false){
+function draw(fit=false,relayout=true){
  $('network').hidden=false;$('map-tools').hidden=false;$('export').disabled=false;
- viewer.mode(dimension);viewer.update(model,fit);
+ viewer.mode(dimension);viewer.update(model,fit,relayout);
  $('map-count').textContent=model.nodes.size+' artists · '+model.links.size+' links';
+ $('settings-summary').textContent=rootID?'· '+model.links.size+' links':'';
+ generationSummary();
 }
 function heading(name,text){$('result').replaceChildren(el('h2',name));if(text)$('result').append(el('p',text))}
 function permalink(id){const u=new URL(location.href);if(id)u.searchParams.set('artist',id);else u.searchParams.delete('artist');history.replaceState(null,'',u)}
@@ -77,18 +80,40 @@ async function crossLinks(opt){
  const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,maxConnections:remaining},opt);
  if(!opt.signal.aborted){appendLinks(edges);return edges.length>0}
 }
-async function openArtist(value,opt){
- const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...generation()},opt);
+function generationSummary(){
+ if(!rootID)return;
+ const o=generation(),direct=[...model.links.values()].filter(e=>e.source===rootID||e.target===rootID).length;
+ const budget=Math.min(o.maxBranch,Math.ceil(rootTotal*o.fraction),o.maxConnections);
+ const capped=budget<Math.ceil(rootTotal*o.fraction);
+ $('generation-summary').textContent=direct+' / '+rootTotal.toLocaleString()+' direct · '+model.links.size+' links'+(capped?' · capped':'');
+}
+async function openArtist(value,opt,refresh=false){
+ const config=generation();
+ const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...config},opt);
  if(opt.signal.aborted)return;
- clearMap();model.addNode(p.root);
+ const selected=refresh?selectedID:null;
+ if(refresh){inspect();model.clear();pages.clear()}else clearMap();
+ rootID=p.root.id;rootTotal=p.total;$('shuffle').disabled=!staticMode;
+ model.addNode({...p.root,root:true});
  if(staticMode)appendLinks(p.links);else appendPage(p);
  heading(p.root.name,p.total.toLocaleString()+' direct connections. Select an artist to expand; select a link for evidence.');
- draw(true);selectNode(p.root.id);permalink(p.root.id);
+ draw(!refresh);selectNode(model.nodes.has(selected)?selected:p.root.id);permalink(p.root.id);
  const added=await crossLinks(opt);if(opt.signal.aborted)return;
- if(added)draw(false);finish(opt)
+ if(added)draw(false);
+ finish(opt,refresh?'Map updated · '+model.links.size+' links':'')
+}
+function refreshGraph(){
+ clearTimeout(refreshTimer);if(!rootID||mode!=='explore'||!staticMode)return;
+ if([...$('generation-settings').querySelectorAll('input')].some(e=>!e.checkValidity())){operation?.abort();$('submit').disabled=false;status('Check generation settings.');return}
+ const id=rootID;operation?.abort();status('Updating map…',true);$('submit').disabled=true;
+ refreshTimer=setTimeout(async()=>{
+  if(rootID!==id)return;
+  const opt=begin('Updating map…');
+  try{await openArtist(id,opt,true)}catch(e){finish(opt,e.message)}
+ },180)
 }
 function renderRoute(index){
- const p=routeSet[index];if(!p)return;routeIndex=index;inspect();model.clear();pages.clear();$('detail').replaceChildren();
+ const p=routeSet[index];if(!p)return;routeIndex=index;selectedID=null;viewer.select(null);inspect();model.clear();pages.clear();$('detail').replaceChildren();
  model.addNode(p.start);let from=p.start;
  heading('Connection path',p.degrees+' '+(p.degrees===1?'degree':'degrees')+' of separation');
  if(routeSet.length>1){
@@ -107,13 +132,13 @@ function renderRoute(index){
  draw(true)
 }
 async function findPath(from,to,opt){
- const p=await api('/api/path',{from,to,...policy(),limit:staticMode?10:1},opt);
+ const p=await api('/api/path',{from,to,...policy(),limit:staticMode?6:1},opt);
  if(opt.signal.aborted)return;clearMap();permalink();
  if(!p.found){heading('No connection found','No path within the search limit.');finish(opt);return}
  routeSet=[p,...(p.alternatives||[])];renderRoute(0);finish(opt)
 }
 function selectNode(id){
- const n=model.nodes.get(id);if(!n)return;inspect();
+ const n=model.nodes.get(id);if(!n)return;selectedID=id;viewer.select(id);inspect();
  const panel=$('detail');panel.replaceChildren(el('strong',n.name));
  if(n.community){panel.append(el('small',n.size.toLocaleString()+' artists; representative names, not genres.'));for(const a of n.artists)panel.append(button(a.name,()=>searchArtist(a)));return}
  if(n.type||n.disambiguation)panel.append(el('small',[n.type,n.disambiguation].filter(x=>x&&x!=='Unknown').join(' · ')));
@@ -140,7 +165,7 @@ async function expandNode(id){
  }catch(e){finish(opt,e.message)}
 }
 function selectLink(id){
- const e=model.links.get(id);if(!e)return;inspect();const a=model.nodes.get(e.source),b=model.nodes.get(e.target);
+ const e=model.links.get(id);if(!e)return;selectedID=null;viewer.select(null);inspect();const a=model.nodes.get(e.source),b=model.nodes.get(e.target);
  $('detail').replaceChildren(el('p',e.description||connectionText(a,b,e)));
  if(e.url)$('detail').append(listen(...listeningTerms(a,b,e)));
  if(staticMode&&!a.community)$('detail').append(button('Evidence',()=>showEvidence(a.id,b.id)))
@@ -198,11 +223,11 @@ async function picked(id,opt){
  return exact?.id||value
 }
 async function submit(){
- closeOptions.forEach(fn=>fn());$('settings').open=false;$('filters').open=false;
+ clearTimeout(refreshTimer);closeOptions.forEach(fn=>fn());$('settings').open=false;$('filters').open=false;
  const opt=begin(mode==='path'?'Finding connections…':'Reading graph…');
  try{
   if(mode==='path'){const [from,to]=await Promise.all([picked('from',opt),picked('to',opt)]);if(!opt.signal.aborted)await findPath(from,to,opt)}
-  else{seed=(Math.random()*4294967296)>>>0;const from=await picked('from',opt);if(!opt.signal.aborted)await openArtist(from,opt)}
+  else{const from=await picked('from',opt);if(!opt.signal.aborted)await openArtist(from,opt)}
  }catch(e){finish(opt,e.message)}
 }
 function searchArtist(a){setMode('explore');$('from').value=a.name;$('from').dataset.id=a.id;submit()}
@@ -210,7 +235,7 @@ $('search').onsubmit=e=>{e.preventDefault();submit()};
 for(const b of document.querySelectorAll('[data-mode]'))b.onclick=()=>{if(mode!==b.dataset.mode)setMode(b.dataset.mode)};
 $('reset').onclick=()=>{
  setMode('explore');for(const id of ['from','to']){$(id).value='';delete $(id).dataset.id}
- $('search').reset();$('filter-options').onchange();layoutSettings();$('settings').open=false;$('filters').open=false;dimension='2D';syncDimension();$('from').focus()
+ $('search').reset();seed=0;$('generation-summary').textContent='';$('settings-summary').textContent='';$('filter-options').onchange();layoutSettings();$('settings').open=false;$('filters').open=false;dimension='2D';syncDimension();$('from').focus()
 };
 let bundle,dimensionRequest=0;
 $('dimension').onclick=async e=>{
@@ -222,11 +247,27 @@ $('dimension').onclick=async e=>{
  dimension=next;syncDimension();draw(true)
 };
 $('fit').onclick=()=>viewer.fit();
-function layoutSettings(){
- viewer.settings={cluster:$('layout-mode').value==='cluster',spacing:Number($('spacing').value),labels:$('labels').checked,nodeSize:Number($('node-size').value),degreeSize:Number($('degree-size').value),repulsion:Number($('repulsion').value),labelSize:Number($('label-size').value)};
- if(model.nodes.size)draw(true)
+function layoutSettings(event){
+ if(event?.type==='input'&&['spacing','repulsion'].includes(event.target.id))return;
+ const previous=viewer.settings;
+ const next={cluster:$('layout-mode').value==='cluster',spacing:Number($('spacing').value),labels:$('labels').checked,nodeSize:Number($('node-size').value),degreeSize:Number($('degree-size').value),repulsion:Number($('repulsion').value),labelSize:Number($('label-size').value)};
+ if(Object.keys(next).every(k=>previous[k]===next[k]))return;
+ viewer.settings=next;
+ if(model.nodes.size)draw(false,['cluster','spacing','repulsion'].some(k=>previous[k]!==next[k]))
 }
+function bindRanges(){
+ for(const input of document.querySelectorAll('#settings input[type=range]')){
+  const out=el('output');out.htmlFor=input.id;input.after(out);
+  const update=()=>out.value=input.value;
+  input.addEventListener('input',update);input.addEventListener('change',update);update();
+  $('search').addEventListener('reset',()=>queueMicrotask(update))
+ }
+}
+bindRanges();
+$('layout-settings').oninput=layoutSettings;
 $('layout-settings').onchange=layoutSettings;
+$('generation-settings').onchange=refreshGraph;
+$('shuffle').onclick=()=>{seed=(seed+1)>>>0;refreshGraph()};
 $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({nodes:[...model.nodes.values()],links:[...model.links.values()]},null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 $('overview').onclick=async()=>{
  $('settings').open=false;setMode('explore');const opt=begin('Reading communities…');

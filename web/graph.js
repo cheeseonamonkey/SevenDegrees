@@ -96,10 +96,14 @@ function createGraph(store){
   const popularity=chart===undefined?0:Math.log1p(1000/(chart+1));
   return mode==='degree'?degree:mode==='popular'?popularity*3-degree*.035:popularity*3-degree*.1;
  }
+ // A candidate's random offset depends on its identity, not traversal order.
+ function jitter(seed,from,to){
+  let x=(seed^Math.imul(from+1,0x9e3779b1)^Math.imul(to+1,0x85ebca6b))>>>0;
+  x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);
+  return ((x^(x>>>16))>>>0)/4294967296-.5;
+ }
  async function generate(name,filter,params,progress=()=>{}){
   const o=options(params),root=await resolve(name,progress),rank=await rankingData();
-  let state=o.seed>>>0;
-  const noise=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return (state/4294967296-.5)*o.variation*8};
   const visited=new Map([[root,0]]),chosen=[],links=new Set();
   if(params.exclude!==undefined){
    if(!Array.isArray(params.exclude)||params.exclude.length>500)throw Error('Invalid exclusion list');
@@ -115,7 +119,7 @@ function createGraph(store){
     for(let j=0;j<batch.length&&chosen.length<o.maxConnections;j++){
      const from=batch[j],pairs=uniqueNeighbors(data[j],filter);
      if(depth===0)total=pairs.size;
-     const candidates=[...pairs].filter(([to])=>!links.has(from<to?from+':'+to:to+':'+from)).map(([to,w])=>[to,w,score(to,rank,o.ranking)+noise()]);
+     const candidates=[...pairs].filter(([to])=>!links.has(from<to?from+':'+to:to+':'+from)).map(([to,w])=>[to,w,score(to,rank,o.ranking)+jitter(o.seed,from,to)*o.variation*8]);
      candidates.sort((a,b)=>b[2]-a[2]||a[0]-b[0]);
      const fraction=o.fraction*Math.pow(o.decay,depth);
      const budget=Math.min(Math.ceil(o.maxBranch*Math.pow(o.decay,depth)),Math.ceil(pairs.size*fraction),o.maxConnections-chosen.length);
@@ -196,7 +200,7 @@ function createGraph(store){
    const scores=new Map(available.map(p=>{
     const [a,b]=p,small=neighbors.get(a),large=neighbors.get(b);
     let mutual=0;for(const c of small)if(large.has(c))mutual++;
-    return [p,Math.log1p(mutual)*.1+score(a,rank,o.ranking)+score(b,rank,o.ranking)];
+    return [p,Math.log1p(mutual)*.1+score(a,rank,o.ranking)+score(b,rank,o.ranking)+jitter(o.seed,a,b)*o.variation*8];
    }));
    available.sort((a,b)=>scores.get(b)-scores.get(a)||a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
    selected=available.slice(0,Math.min(o.maxConnections,Math.ceil(available.length*o.fraction)));
@@ -238,6 +242,10 @@ function createGraph(store){
    }
    if(meet.size){
     const value=id=>rank?score(id,rank,'popular'):0;
+    // Small bonus for direct musical involvement over covers or generic roles.
+    // These are traversal categories, not a confidence estimate.
+    const edgeValue=w=>categorical?((w&2)?0.24:(w&1)?0.18:(w&4)?0.12:0):0;
+    const pool=limit===1?1:limit*4;
     function prefixes(side){
      const memo=new Map();
      function best(id){
@@ -245,9 +253,9 @@ function createGraph(store){
       const parents=side.prev.get(id).parents;
       const choices=[];
       if(!parents.length)choices.push({pairs:[],ids:[id],score:value(id)});
-      for(const [p,w] of parents){for(const r of best(p))choices.push({pairs:[...r.pairs,[id,w]],ids:[...r.ids,id],score:r.score+value(id)});if(choices.length>limit*8){choices.sort((a,b)=>b.score-a.score);choices.length=limit}}
+      for(const [p,w] of parents){for(const r of best(p))choices.push({pairs:[...r.pairs,[id,w]],ids:[...r.ids,id],score:r.score+value(id)+edgeValue(w)});if(choices.length>pool*4){choices.sort((a,b)=>b.score-a.score);choices.length=pool}}
       choices.sort((a,b)=>b.score-a.score);
-      const top=choices.slice(0,limit);memo.set(id,top);return top
+      const top=choices.slice(0,pool);memo.set(id,top);return top
      }return best
     }
     const l=prefixes(left),r=prefixes(right),routes=[];
@@ -255,10 +263,19 @@ function createGraph(store){
      const pairs=x.pairs.concat(y.pairs.map((p,i)=>[y.ids[i],p[1]]).reverse());
      routes.push({pairs,score:x.score+y.score-value(m)});
      // Bound retained combinations without truncating the shortest-path DAG.
-     if(routes.length>limit*8){routes.sort((a,b)=>b.score-a.score);routes.length=limit}
+     if(routes.length>pool*4){routes.sort((a,b)=>b.score-a.score);routes.length=pool}
     }
     routes.sort((a,b)=>b.score-a.score);
-    return result(routes.slice(0,limit).map(r=>r.pairs));
+    // Soft diversity among equally short candidates. A recognizable artist
+    // still dominates the small repeated-intermediary penalty.
+    const selected=[],seen=new Map(),remaining=routes.slice(0,pool);
+    while(remaining.length&&selected.length<limit){
+     const adjusted=r=>r.score-r.pairs.slice(0,-1).reduce((sum,[id])=>sum+0.35*Math.log1p(seen.get(id)||0),0);
+     let best=0;for(let i=1;i<remaining.length;i++)if(adjusted(remaining[i])>adjusted(remaining[best]))best=i;
+     const [route]=remaining.splice(best,1);selected.push(route.pairs);
+     for(const [id] of route.pairs.slice(0,-1))seen.set(id,(seen.get(id)||0)+1);
+    }
+    return result(selected);
    }
    a.nodes=next;a.depth++;
   }

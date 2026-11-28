@@ -201,8 +201,8 @@ await query('/api/generate', {
 The same parameters are exposed through MCP's `music_generate` tool.
 The complete evidence and ordinary paginated neighbor API remain unchanged.
 Path queries accept `limit: 1–10` and return `alternatives` containing other
-equally short artist sequences, ranked by popularity with a small hub penalty.
-The default API limit remains one. The browser requests ten.
+equally short artist sequences, ranked primarily by popularity with small hub and repeated-intermediary penalties, and a modest bonus for direct musical roles.
+The default API limit remains one. The browser requests six.
 Autocomplete groups equal display names but never merges different artist IDs;
 `expand: true` exposes individual identities and disambiguation. Immutable
 data resources use browser caching, and up to 64 small validated range reads
@@ -295,3 +295,8 @@ The browser deliberately exposes just two tools: Explore map and Find connection
 Selecting an autocomplete result fills the input; the submit button runs the query.
 Filters apply on the next search, and evidence and membership panels load on demand.
 Alternative chains remain above the map while individual artists are inspected.
+Generation settings apply on change with a fixed seed; Shuffle explicitly advances
+the seed. Candidate variation is keyed by edge identity. The draw count reports
+when the caps bind. Appearance changes preserve the selected graph; force-layout
+changes animate to deterministic 2D target positions. Generation changes rebuild
+the root map, including replacing manually expanded branches.

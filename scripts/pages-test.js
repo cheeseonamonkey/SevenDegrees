@@ -51,6 +51,15 @@ const {server,metrics}=require('./test-server')(process.argv[2],{failFirstRange:
   assert.equal(expanded.links.length,Math.min(4,web.total-web.links.length));
   const repeated=await query('/api/generate',root);
   assert.deepEqual(repeated.links,web.links);
+  const small=await query('/api/generate',{...root,maxBranch:2,seed:23,variation:.5});
+  const large=await query('/api/generate',{...root,maxBranch:6,seed:23,variation:.5});
+  assert.deepEqual(small.links,large.links.slice(0,small.links.length),'increasing the cap retains the original ranked prefix');
+  const withoutFirst=await query('/api/generate',{...root,maxBranch:6,seed:23,variation:.5,exclude:[large.links[0].to.id]});
+  assert.deepEqual(withoutFirst.links.slice(0,large.links.length-1),large.links.slice(1),'excluding a candidate does not alter the remaining random offsets');
+  const smallerFraction=await query('/api/generate',{...root,maxBranch:100,fraction:.2,seed:23});
+  const largerFraction=await query('/api/generate',{...root,maxBranch:100,fraction:.4,seed:23});
+  assert.deepEqual(smallerFraction.links,largerFraction.links.slice(0,smallerFraction.links.length));
+
   const zero=await query('/api/generate',{...root,fraction:0,depth:3});
   assert.equal(zero.links.length,0);assert.equal(zero.total,web.total);
   const decay=await query('/api/generate',{...root,depth:3,decay:0});
@@ -64,15 +73,16 @@ const {server,metrics}=require('./test-server')(process.argv[2],{failFirstRange:
   assert.ok(extra.length<=3);
   assert.ok(extra.every(e=>!web.links.some(x=>[x.from.id,x.to.id].includes(e.from.id)&&[x.from.id,x.to.id].includes(e.to.id))));
   console.log('Ranked web generation passed',web.links.length,'links');
-  const alternatives=await query('/api/path',{from:'Tom Morello',to:'David Bowie',limit:10});
+  const alternatives=await query('/api/path',{from:'Tom Morello',to:'David Bowie',limit:6});
   assert.equal(alternatives.degrees,original.degrees);
   const chains=[alternatives,...alternatives.alternatives];
-  assert.ok(chains.length<=10&&chains.every(p=>p.degrees===original.degrees));
+  assert.ok(chains.length<=6&&chains.every(p=>p.degrees===original.degrees));
   assert.equal(new Set(chains.map(p=>p.steps.map(s=>s.to.id).join(','))).size,chains.length);
   const suggestions=await query('/api/artists',{q:'Slayer'});
   assert.equal(new Set(suggestions.map(a=>a.name.toLowerCase())).size,suggestions.length);
   if(stats.artist>773){assert.ok(suggestions[0].matches>1);const matches=await query('/api/artists',{q:'Slayer',expand:true});assert.ok(matches.length>1);assert.equal(matches[0].id,suggestions[0].id)}
-  console.log('Shortest chains',chains.length);
+  assert.deepEqual(await query('/api/path',{from:'Tom Morello',to:'David Bowie',limit:6}),alternatives);
+  console.log('Shortest chains',chains.length,chains.map(c=>c.steps.map(s=>s.to.name).join(' → ')));
   const same=await query('/api/path',{from:'David Bowie',to:'David Bowie'});
   assert.equal(same.degrees,0);
   const shared=await query('/api/evidence',{artist:'The Wiggles',other:'Tame Impala'});
