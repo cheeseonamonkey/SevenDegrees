@@ -1,11 +1,16 @@
 // Range-addressable static API. Independent gzip members, bounded concurrent
 // requests, in-flight deduplication and an LRU cache shared by all operations.
 async function graphClient(manifestURL){
- const read=async(url,options)=>{const r=await fetch(url,options);if(!r.ok)throw Error('Graph API: '+r.status);return r};
+ const read=async(url,options={})=>{
+  const immutable=new URL(url).pathname.includes('/data/');
+  const r=await fetch(url,{cache:immutable?'force-cache':'no-cache',...options});
+  if(!r.ok)throw Error('Graph API: '+r.status);return r
+ };
  const manifest=await (await read(manifestURL)).json();
  if(manifest.layout!=='range-v1')throw Error('The lazy graph index is not deployed yet.');
  const url=p=>new URL(p,manifestURL);
  const unzip=async bytes=>new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).json();
+ if(typeof caches!=='undefined'&&manifest.snapshot){try{for(const key of await caches.keys())if(key.startsWith('musicatlas-ranges-')&&key!=='musicatlas-ranges-'+manifest.snapshot)await caches.delete(key)}catch{}}
  const indexes=new Map(),directories=new Map(),cache=new Map(),pending=new Map(),queue=[];
  let running=0,weight=0;
  const schedule=fn=>new Promise((resolve,reject)=>{queue.push({fn,resolve,reject});pump()});
@@ -52,13 +57,23 @@ async function graphClient(manifestURL){
   }
   for(const g of groups){
    const request=schedule(async()=>{
-    const r=await read(url(d.packs[g.pack]),{headers:{Range:'bytes='+g.start+'-'+(g.end-1)}});
-    if(r.status!==206){await r.body?.cancel();throw Error('Static host does not support byte-range reads');}
-    const bytes=await r.arrayBuffer();
-    if(bytes.byteLength!==g.end-g.start)throw Error('Truncated graph block');
-    const range=r.headers.get('content-range');
-    if(range&&!range.startsWith('bytes '+g.start+'-'+(g.end-1)+'/'))throw Error('Incorrect graph byte range');
-    return bytes;
+    const target=url(d.packs[g.pack]),range='bytes='+g.start+'-'+(g.end-1);
+    const key=new URL(target);key.searchParams.set('range',range);
+    let disk;
+    try{if(typeof caches!=='undefined')disk=await caches.open('musicatlas-ranges-'+manifest.snapshot)}catch{}
+    if(disk){try{const hit=await disk.match(key);if(hit){const bytes=await hit.arrayBuffer();if(bytes.byteLength===g.end-g.start)return bytes;await disk.delete(key)}}catch{}}
+    let error;
+    for(let attempt=0;attempt<2;attempt++){
+     try{
+      const r=await read(target,{headers:{Range:range},cache:attempt?'reload':'no-cache'});
+      if(r.status!==206){await r.body?.cancel();throw Error('Static host did not return a byte range')}
+      const bytes=await r.arrayBuffer(),header=r.headers.get('content-range');
+      if(bytes.byteLength!==g.end-g.start||(header&&!header.startsWith(range.replace('=',' ')+'/')))throw Error('Incorrect graph byte range');
+      if(disk&&bytes.byteLength<=262144){try{await disk.put(key,new Response(bytes));const keys=await disk.keys();for(const old of keys.slice(0,Math.max(0,keys.length-64)))await disk.delete(old)}catch{}}
+      return bytes;
+     }catch(e){error=e}
+    }
+    throw error;
    });
    for(const f of g.members){
     const job=request.then(bytes=>unzip(bytes.slice(f.start-g.start,f.start-g.start+f.size))).then(data=>{remember(f.key,data,f.size);return data}).finally(()=>pending.delete(f.key));
@@ -80,8 +95,8 @@ async function graphClient(manifestURL){
    case '/api/categories':return manifest.categories||null;
    case '/api/atlas':return manifest.atlas?resource(manifest.atlas):null;
    case '/api/profile':return graph.profile(params.artist,params.offset,params.year,progress,relationshipMask(params));
-   case '/api/artists':return graph.search(params.q,progress);
-   case '/api/path':return graph.path(params.from,params.to,relationshipMask(params),progress);
+   case '/api/artists':return graph.search(params.q,progress,params.expand);
+   case '/api/path':return graph.path(params.from,params.to,relationshipMask(params),progress,params.limit??1);
    case '/api/neighbors':return graph.neighbors(params.artist,relationshipMask(params),params.offset,progress);
    case '/api/generate':return graph.generate(params.artist,relationshipMask(params),params,progress);
    case '/api/map-links':return graph.mapLinks(params.artists,relationshipMask(params),progress,params);

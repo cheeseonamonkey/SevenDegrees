@@ -144,8 +144,8 @@ The client coalesces close ranges, deduplicates in-flight requests, uses eight
 concurrent reads and an 8 MiB compressed-weight LRU cache. Bidirectional BFS
 reads topology first and retrieves artist names/evidence only for its result.
 The vanilla JS worker keeps the interface responsive. The full-window atlas
-uses 3D Force Graph (Three.js) with Cytoscape.js as a 2D fallback. The global
-view renders the 100 largest Leiden communities (not genre classifications);
+uses Cytoscape.js by default, with on-demand 3D Force Graph (Three.js). The
+optional global view displays 40 large Leiden communities and up to 90 links (not genre classifications);
 all connected artists remain searchable. Local maps retain expansion state,
 have mobile/desktop display limits, and export to JSON. Five independent
 category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance. The overview
@@ -181,9 +181,11 @@ ranked one-hop neighborhood; Generate web expands recursively. At hop
 `d`, the eligible-neighbor fraction and branch cap are multiplied by
 `decay ** d` and rounded up. The total budget is a hard limit for generated
 webs. The phone UI additionally limits the number of visible nodes.
-Ranking uses actual unique graph degree, the existing ListenBrainz chart,
-or a combination. Connect mapped artists ranks missing links using shared
-neighbors and the selected ranking, and respects the remaining edge budget.
+Popularity is the default ranking, with a small negative graph-degree
+weight to avoid concentrating on hubs. Degree-only and a stronger diversity
+bias are optional. Seeded random variation (default 0.12) changes generated
+webs without changing facts. Connect mapped artists uses a small shared-neighbor
+bonus and the same ranking and edge budget.
 The compact rank index is derived from the installed graph during Pages
 assembly and loaded only for ranked operations; pathfinding remains exact
 and unaffected by display limits.
@@ -197,6 +199,13 @@ await query('/api/generate', {
 
 The same parameters are exposed through MCP's `music_generate` tool.
 The complete evidence and ordinary paginated neighbor API remain unchanged.
+Path queries accept `limit: 1–10` and return `alternatives` containing other
+equally short artist sequences, ranked by popularity with a small hub penalty.
+The default API limit remains one. The browser requests ten.
+Autocomplete groups equal display names but never merges different artist IDs;
+`expand: true` exposes individual identities and disambiguation. Immutable
+data resources use browser caching, and up to 64 small validated range reads
+are cached per snapshot. A failed range read is retried once.
 
 ### Read-only MCP
 

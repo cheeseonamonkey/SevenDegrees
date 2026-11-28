@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {graphClient}=require('../web/graph-client.js');
 
-const {server,metrics}=require('./test-server')(process.argv[2]);
+const {server,metrics}=require('./test-server')(process.argv[2],{failFirstRange:true});
 (async()=>{
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  try{
@@ -61,6 +61,15 @@ const {server,metrics}=require('./test-server')(process.argv[2]);
   assert.ok(extra.length<=3);
   assert.ok(extra.every(e=>!web.links.some(x=>[x.from.id,x.to.id].includes(e.from.id)&&[x.from.id,x.to.id].includes(e.to.id))));
   console.log('Ranked web generation passed',web.links.length,'links');
+  const alternatives=await query('/api/path',{from:'Tom Morello',to:'David Bowie',limit:10});
+  assert.equal(alternatives.degrees,original.degrees);
+  const chains=[alternatives,...alternatives.alternatives];
+  assert.ok(chains.length<=10&&chains.every(p=>p.degrees===original.degrees));
+  assert.equal(new Set(chains.map(p=>p.steps.map(s=>s.to.id).join(','))).size,chains.length);
+  const suggestions=await query('/api/artists',{q:'Slayer'});
+  assert.equal(new Set(suggestions.map(a=>a.name.toLowerCase())).size,suggestions.length);
+  if(stats.artist>773){assert.ok(suggestions[0].matches>1);const matches=await query('/api/artists',{q:'Slayer',expand:true});assert.ok(matches.length>1);assert.equal(matches[0].id,suggestions[0].id)}
+  console.log('Shortest chains',chains.length);
   const same=await query('/api/path',{from:'David Bowie',to:'David Bowie'});
   assert.equal(same.degrees,0);
   const shared=await query('/api/evidence',{artist:'The Wiggles',other:'Tame Impala'});
@@ -82,7 +91,7 @@ const {server,metrics}=require('./test-server')(process.argv[2]);
    assert.deepEqual(all.sort((a,b)=>a.id.localeCompare(b.id)),expected.sort((a,b)=>a.id.localeCompare(b.id)));
   }
   assert.equal(metrics().fullPacks,0,'No complete pack downloads');
-  assert.ok(metrics().rangeRequests>0);
+  assert.ok(metrics().rangeRequests>0);assert.equal(metrics().retriesInjected,1);
   console.log(JSON.stringify({stats,startup_bytes:startup,artist_search_bytes:firstSearch,neighborhood_bytes:mapBytes,total_bytes:metrics().transferred,range_requests:metrics().rangeRequests},null,2));
  }finally{server.close()}
 })().catch(e=>{console.error(e);process.exitCode=1;server.close()});
