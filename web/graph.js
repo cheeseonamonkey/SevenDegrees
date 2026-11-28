@@ -101,6 +101,10 @@ function createGraph(store){
   let state=o.seed>>>0;
   const noise=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return (state/4294967296-.5)*o.variation*8};
   const visited=new Map([[root,0]]),chosen=[],links=new Set();
+  if(params.exclude!==undefined){
+   if(!Array.isArray(params.exclude)||params.exclude.length>500)throw Error('Invalid exclusion list');
+   for(const id of await Promise.all(params.exclude.map(a=>resolve(a,progress))))links.add(root<id?root+':'+id:id+':'+root);
+  }
   const rootRow=(await rows("topology",[root]))[0];
   let frontier=[root],total=uniqueNeighbors(rootRow,filter).size;
   for(let depth=0;depth<o.depth&&frontier.length;depth++){

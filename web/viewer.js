@@ -1,6 +1,6 @@
-/* Both renderers consume the same map model. 3D is preferred; 2D is a fallback. */
+/* Both renderers consume the same map model. 2D is the default; 3D is optional. */
 const palette={Person:'#55c5b5',Group:'#e6b76e',Orchestra:'#e6b76e',Choir:'#e6b76e',Unknown:'#a8b2bf'};
-const nodeColor=n=>n.community?'#8aace8':palette[n.type]||palette.Unknown;
+const nodeColor=n=>n.community?'#8aace8':palette[n.type]||'#b8a0eb';
 const edgeColor=e=>category(e.kind)?.color||'#637588';
 const size=(n,s)=>s.nodeSize*(n.community?Math.min(10,4+Math.log1p(n.size)*.35):Math.min(14,4+Math.sqrt(n.degree||0)*s.degreeSize));
 function layoutData(model,settings){
@@ -40,7 +40,7 @@ class MapViewer {
   this.cy?.resize();
  }
  destroy(){
-  this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;
+  this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
   this.el.replaceChildren();
  }
  mode(mode){
@@ -61,7 +61,7 @@ class MapViewer {
    }
   }else{
    this.cy=cytoscape({container:this.el,elements:[],style:[
-    {selector:'node',style:{'background-color':n=>nodeColor(n.data()),label:n=>this.settings.labels?n.data('name'):'',color:'#f5f8ff','font-size':n=>Math.max(9,Math.min(16,size(n.data(),this.settings)*.9*this.settings.labelSize)),'font-weight':400,'min-zoomed-font-size':7,'text-valign':'bottom','text-margin-y':3,'text-halign':'center','text-outline-width':2,'text-outline-color':'#181818','text-wrap':'wrap','text-max-width':120,width:n=>size(n.data(),this.settings)*2.4,height:n=>size(n.data(),this.settings)*2.4}},
+    {selector:'node',style:{'background-color':n=>nodeColor(n.data()),label:n=>this.settings.labels?n.data('name'):'',color:getComputedStyle(document.body).color,'font-size':n=>Math.max(9,Math.min(16,size(n.data(),this.settings)*.9*this.settings.labelSize)),'font-weight':400,'min-zoomed-font-size':7,'text-valign':'bottom','text-margin-y':3,'text-halign':'center','text-outline-width':2,'text-outline-color':'#181818','text-wrap':'wrap','text-max-width':120,width:n=>size(n.data(),this.settings)*2.4,height:n=>size(n.data(),this.settings)*2.4}},
     {selector:'edge',style:{'line-color':e=>edgeColor(e.data()),width:1.2,opacity:.9,'curve-style':'bezier'}},
     {selector:'edge[kind = "cover"],edge[kind = "cover-reference"],edge[kind = "tribute"]',style:{'line-style':'dashed'}}
    ]});

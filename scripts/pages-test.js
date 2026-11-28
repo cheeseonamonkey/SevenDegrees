@@ -46,6 +46,9 @@ const {server,metrics}=require('./test-server')(process.argv[2],{failFirstRange:
   const web=await query('/api/generate',root);
   assert.equal(web.total,neighborhood.total);
   assert.equal(web.links.length,Math.min(web.total,4));
+  const expanded=await query('/api/generate',{...root,exclude:web.links.map(e=>e.to.id)});
+  assert.ok(expanded.links.every(e=>!web.links.some(old=>old.to.id===e.to.id)));
+  assert.equal(expanded.links.length,Math.min(4,web.total-web.links.length));
   const repeated=await query('/api/generate',root);
   assert.deepEqual(repeated.links,web.links);
   const zero=await query('/api/generate',{...root,fraction:0,depth:3});

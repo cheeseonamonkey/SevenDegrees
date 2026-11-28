@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#181818">
-<title>MusicAtlas — Explore musical connections</title>
+<title>MusicAtlas</title>
 <link rel="stylesheet" href="style.css">
 <script src="cytoscape.min.js" defer></script>
 <script src="relationships.js" defer></script>
@@ -12,46 +11,53 @@
 <script src="app.js" defer></script>
 </head>
 <body>
-<header class="topbar">
- <a class="brand" href="./">MusicAtlas</a>
- <span id="stats" class="muted">Loading index…</span>
- <nav><button id="reset" type="button">Reset</button><a href="api/v1/manifest.json" id="api-link" hidden>API</a><a href="https://github.com/cheeseonamonkey/MusicAtlas/releases">Data</a><a href="https://github.com/cheeseonamonkey/MusicAtlas">Source</a></nav>
-</header>
-<div class="toolbar">
- <div class="modes"><button id="overview" type="button">Atlas</button><button id="mode" type="button" aria-pressed="false">Find path</button></div>
- <form id="search" role="search">
-  <div class="field"><label class="sr-only" for="from">Artist</label><input id="from" placeholder="Search people or bands" autocomplete="off" required><div class="options" id="from-options" hidden></div></div>
-  <div class="field" id="destination" hidden><label class="sr-only" for="to">Destination</label><input id="to" placeholder="Connect to…" autocomplete="off"><div class="options" id="to-options" hidden></div></div>
-  <button id="submit" class="primary" type="submit">Explore</button>
- </form>
- <details id="filters"><summary>Relationships <span id="filter-count"></span></summary><div class="filter-panel"><div id="filter-options"></div><div class="filter-actions"><button id="all-types" type="button">All</button><button id="no-types" type="button">None</button></div></div></details>
+<main>
+<header><h1>MusicAtlas</h1><p>Explore the relationships behind music.</p><small id="stats"></small></header>
+<nav aria-label="Tools">
+<button type="button" data-mode="explore" aria-pressed="true">Explore map</button>
+<button type="button" data-mode="path" aria-pressed="false">Find connections</button>
+<button type="button" id="reset">Reset</button>
+</nav>
+<form id="search">
+<div class="fields">
+<div class="field"><label for="from">Artist</label><input id="from" placeholder="Artist or band" autocomplete="off" required><div id="from-options" class="options"></div></div>
+<div class="field" id="destination" hidden><label for="to">Destination</label><input id="to" placeholder="Artist or band" autocomplete="off"><div id="to-options" class="options"></div></div>
 </div>
-<div class="tabs" role="group" aria-label="Result view"><button id="map-tab" type="button" aria-pressed="true">Map</button><button id="connections-tab" type="button" aria-pressed="false">Connections</button></div>
-<div class="map-tools">
- <div id="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="true">2D</button><button type="button" data-dimension="3D" aria-pressed="false">3D</button></div>
- <button id="fit" type="button">Fit</button><button id="layout-button" type="button" aria-expanded="false">Settings</button><button id="expand-selected" type="button" disabled>Expand</button>
- <span id="selection"></span>
-</div>
-  <section id="layout-panel" hidden aria-label="Graph layout controls"><label>Layout <select id="layout-mode"><option value="force">Force-directed</option><option value="cluster">By relationship type</option></select></label><label>Spacing <input id="spacing" type="range" min="35" max="120" value="65"></label><label>Node size <input id="node-size" type="range" min="0.5" max="2" step="0.1" value="1"></label><label>Degree influence <input id="degree-size" type="range" min="0" max="2" step="0.1" value="0.6"></label><label>Repulsion <input id="repulsion" type="range" min="0.3" max="3" step="0.1" value="1.4"></label><label>Label size <input id="label-size" type="range" min="0.5" max="1.5" step="0.1" value="1"></label><label><input id="labels" type="checkbox" checked> Labels</label><button id="relayout" type="button">Reorganize</button><hr>
-<label>Rank by <select id="ranking"><option value="popular">Popularity</option><option value="degree">Graph backlinks</option><option value="balanced">More diversity</option></select></label>
-<label>Random variation <input id="variation" type="number" min="0" max="1" step="0.05" value="0.12"></label>
+<details id="filters"><summary>Relationships <small id="filter-count"></small></summary><div id="filter-options"></div></details>
+<details id="settings"><summary>Settings</summary>
+<div id="generation-settings">
+<label>Rank by <select id="ranking"><option value="popular">Popularity</option><option value="degree">Connectivity</option><option value="balanced">More diversity</option></select></label>
 <label>Draw fraction <input id="fraction" type="number" min="0" max="1" step="0.05" value="0.4"></label>
-<label>Decay per hop <input id="decay" type="number" min="0" max="1" step="0.1" value="0.5"></label>
-<label>Depth <input id="depth" type="number" min="1" max="4" step="1" value="2"></label>
+<label>Decay <input id="decay" type="number" min="0" max="1" step="0.1" value="0.5"></label>
+<label>Depth <input id="depth" type="number" min="1" max="4" value="1"></label>
 <label>Max per artist <input id="max-branch" type="number" min="1" max="100" value="16"></label>
 <label>Max connections <input id="max-connections" type="number" min="0" max="500" value="100"></label>
-<button id="generate-map" type="button" disabled>Generate web</button><button id="connect-map" type="button" disabled>Connect mapped artists</button><p><button id="export" type="button">Export JSON</button></p></section>
+<label>Variation <input id="variation" type="number" min="0" max="1" step="0.01" value="0.12"></label>
+<label><input id="cross-links" type="checkbox"> Connect artists already on map</label>
+</div>
+<div id="layout-settings">
+<label>Layout <select id="layout-mode"><option value="force">Force-directed</option><option value="cluster">By relationship type</option></select></label>
+<label>Spacing <input id="spacing" type="range" min="35" max="120" value="65"></label>
+<label>Node size <input id="node-size" type="range" min="0.5" max="2" step="0.1" value="1"></label>
+<label>Degree influence <input id="degree-size" type="range" min="0" max="2" step="0.1" value="0.6"></label>
+<label>Repulsion <input id="repulsion" type="range" min="0.3" max="3" step="0.1" value="1.4"></label>
+<label>Label size <input id="label-size" type="range" min="0.5" max="1.5" step="0.1" value="1"></label>
+<label><input id="labels" type="checkbox" checked> Labels</label>
+</div>
+<p><button id="overview" type="button">Community overview</button> <button id="export" type="button" disabled>Export JSON</button></p>
+</details>
+<div class="actions"><button id="submit" type="submit">Explore</button></div>
+</form>
+<section id="result" aria-live="polite"></section>
 <div id="status" role="status" aria-live="polite"></div>
-<main class="workspace">
- <section class="map-pane" aria-label="Music relationship map">
-  <div id="network"></div>
-  <div class="map-caption"><span id="map-count"></span><span id="legend"><i class="person"></i> Person <i class="group"></i> Group <i class="unknown"></i> Other / unknown</span><span id="edge-legend"></span></div>
-
-
- </section>
- <aside hidden class="inspector" aria-label="Map inspector">
-  <div id="detail"></div><div id="records" aria-live="polite"></div>
- </aside>
+<div id="map-tools" hidden>
+<div id="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="true">2D</button><button type="button" data-dimension="3D" aria-pressed="false">3D</button></div>
+<button id="fit" type="button">Fit</button><small id="map-count"></small>
+</div>
+<section id="detail" aria-live="polite"></section>
+<div id="network" hidden aria-label="Interactive graph"></div>
+<section id="records" aria-live="polite"></section>
+<footer><a href="https://github.com/cheeseonamonkey/MusicAtlas">Source</a> · <a href="https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/owl-mb-20261125-002239">OWL data</a> · <a href="api/v1/manifest.json" id="api-link" hidden>Data API</a></footer>
 </main>
 </body>
 </html>

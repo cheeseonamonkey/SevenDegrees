@@ -176,16 +176,17 @@ so dynamic queries execute in the shared client, not as server-side routes.
 ### Ranked web generation
 
 The map settings expose a draw fraction (default 0.4), decay per hop (0.5),
-depth (2), max per artist (16), and total edge budget (100). Search opens a
-ranked one-hop neighborhood; Generate web expands recursively. At hop
+depth (1), max per artist (16), and total edge budget (100). Explore generates
+a ranked map at the chosen depth; selecting a node and pressing Expand adds
+new ranked neighbors without repeating already drawn connections. At hop
 `d`, the eligible-neighbor fraction and branch cap are multiplied by
 `decay ** d` and rounded up. The total budget is a hard limit for generated
 webs. The phone UI additionally limits the number of visible nodes.
 Popularity is the default ranking, with a small negative graph-degree
 weight to avoid concentrating on hubs. Degree-only and a stronger diversity
 bias are optional. Seeded random variation (default 0.12) changes generated
-webs without changing facts. Connect mapped artists uses a small shared-neighbor
-bonus and the same ranking and edge budget.
+webs without changing facts. The optional cross-links setting adds links among mapped artists using a small
+shared-neighbor bonus and the same ranking and edge budget.
 The compact rank index is derived from the installed graph during Pages
 assembly and loaded only for ranked operations; pathfinding remains exact
 and unaffected by display limits.
@@ -289,3 +290,8 @@ scripts/publish-range.sh .cache/range/atlas
 The separate single-file OWL release is Turtle gzip (`MusicAtlas.ttl.gz`);
 it embeds the ontology and source assertions without requiring remote imports.
 The website consumes the independently built range index, not the OWL archive.
+
+The browser deliberately exposes just two tools: Explore map and Find connections.
+Selecting an autocomplete result fills the input; the submit button runs the query.
+Filters apply on the next search, and evidence and membership panels load on demand.
+Alternative chains remain above the map while individual artists are inspected.
