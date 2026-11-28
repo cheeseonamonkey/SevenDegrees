@@ -21,8 +21,10 @@ async function api(path,params={},options={}){
 }
 const model=new AtlasMap(),pages=new Map();
 let dimension='3D',mode='explore',view='atlas',selected=null,operation,inspection,lastQuery;
-const viewer=new MapViewer($('network'),{onNode:selectNode,onLink:selectLink,onFallback:()=>{dimension='2D';$('dimension').textContent='2D'}});
+const viewer=new MapViewer($('network'),{onNode:selectNode,onLink:selectLink,onFallback:()=>{dimension='2D';syncDimension()}});
 viewer.mode(dimension);
+function syncDimension(){for(const b of $('dimension').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.dimension===dimension))}
+syncDimension();
 const MAX_NODES=matchMedia('(max-width:760px)').matches?240:500;
 const mask=()=>Array.from(document.querySelectorAll('#filter-options input:checked')).reduce((m,e)=>m|Number(e.value),0);
 const policy=()=>staticMode?{mask:mask()}:{strict:!(mask()&8)};
@@ -154,7 +156,7 @@ const inputValue=id=>$(id).dataset.id||$(id).value.trim();
 $('search').onsubmit=e=>{e.preventDefault();closeOptions.forEach(fn=>fn());if(mode==='path'){if(inputValue('to'))findPath(inputValue('from'),inputValue('to'));else $('to').focus()}else openArtist(inputValue('from'))};
 $('mode').onclick=()=>{mode=mode==='path'?'explore':'path';$('mode').setAttribute('aria-pressed',String(mode==='path'));$('destination').hidden=mode!=='path';$('submit').textContent=mode==='path'?'Connect':'Explore';if(mode==='path')$('to').focus()};
 $('overview').onclick=()=>{const u=new URL(location.href);u.searchParams.delete('artist');history.replaceState(null,'',u);overview()};
-$('dimension').onclick=()=>{dimension=dimension==='3D'?'2D':'3D';viewer.mode(dimension);$('dimension').textContent=dimension;update(true)};
+$('dimension').onclick=e=>{const next=e.target.closest('button')?.dataset.dimension;if(!next||next===dimension)return;dimension=next;viewer.mode(dimension);syncDimension();update(true)};
 $('fit').onclick=()=>viewer.fit();
 $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({nodes:[...model.nodes.values()],links:[...model.links.values()]},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 async function filters(){

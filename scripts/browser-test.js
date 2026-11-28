@@ -12,12 +12,14 @@ const {server}=require('./test-server')(process.argv[2]);
    await page.locator('#from').fill('Tom Morello');
    await page.locator('#from-options button').first().click({timeout:20000});
    await page.locator('#detail h1').getByText('Tom Morello',{exact:true}).waitFor({timeout:20000});
-   assert.equal(await page.locator('#dimension').textContent(),'3D');
+   assert.equal(await page.locator('#dimension button[aria-pressed=true]').textContent(),'3D');
    assert.ok(await page.locator('#network canvas').count());
    await page.locator('#detail').getByRole('button',{name:'Evidence',exact:true}).click();
    await page.locator('#records .record').first().waitFor({timeout:20000});
-   await page.locator('#dimension').click();
-   assert.equal(await page.locator('#dimension').textContent(),'2D');
+   await page.locator('#dimension [data-dimension="2D"]').click();
+   assert.equal(await page.locator('#dimension button[aria-pressed=true]').textContent(),'2D');
+   await page.locator('#dimension [data-dimension="3D"]').click();
+   assert.equal(await page.locator('#dimension button[aria-pressed=true]').textContent(),'3D');
    assert.ok(await page.locator('#network canvas').count());
    await page.locator('#filters summary').click();
    if(await page.locator('#filter-options input').count()===5){

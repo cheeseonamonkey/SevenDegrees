@@ -4,3 +4,5 @@
 @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
 
 #filters{position:relative;flex:none}#filters summary{cursor:pointer;padding:8px 10px;border:1px solid var(--line);border-radius:5px}#filter-count{color:var(--muted);font-size:.8em}#filter-options{position:absolute;right:0;top:100%;z-index:12;min-width:210px;background:var(--panel);border:1px solid var(--line);padding:10px;box-shadow:0 8px 24px #0006}#filter-options label{display:block;padding:5px;white-space:nowrap}.inspector summary{cursor:pointer;color:var(--muted)}
+
+.dimension{display:flex;align-items:stretch}.dimension button:first-child{border-radius:5px 0 0 5px}.dimension button:last-child{border-radius:0 5px 5px 0;margin-left:-1px}.dimension button[aria-pressed=true]{background:var(--accent);color:var(--bg);position:relative}
