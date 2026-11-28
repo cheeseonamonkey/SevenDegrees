@@ -40,7 +40,7 @@ class MapViewer {
   this.cy?.resize();
  }
  destroy(){
-  this.layout?.stop();this.layout=null;this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
+  this.layout?.stop();this.layout=null;this.layoutWorker?.terminate();this.layoutWorker=null;this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
   this.el.replaceChildren();
  }
  mode(mode){
@@ -104,16 +104,40 @@ class MapViewer {
    if(nodes.length===1)this.fit();
   }else if(this.cy){
    if(!relayout){this.cy.style().update();return}
-   this.layout?.stop();this.cy.nodes().stop(true,false);
+   this.layout?.stop();this.layoutWorker?.terminate();this.layoutWorker=null;this.cy.nodes().stop(true,false);
    const old=reset?new Map():new Map(this.cy.nodes().map(n=>[n.id(),{...n.position()}]));
-   const data=nodes.map(n=>({data:n,position:old.get(n.id)||n.initial})).concat(links.map(e=>({data:e})));
+   const initial=new Map(old),siblings=new Map();
+   // Start new artists near their existing parent, rather than at the map center.
+   for(const e of model.links.values()){
+    const a=initial.has(e.source)?e.source:initial.has(e.target)?e.target:null;
+    if(a===null)continue;const b=a===e.source?e.target:e.source;
+    if(initial.has(b))continue;
+    const i=siblings.get(a)||0,p=initial.get(a),angle=i*2.3999632297,r=spacing*(1+Math.sqrt(i)*.35);
+    siblings.set(a,i+1);initial.set(b,{x:p.x+Math.cos(angle)*r,y:p.y+Math.sin(angle)*r});
+   }
+   for(const n of nodes)if(!initial.has(n.id))initial.set(n.id,n.initial);
+   const data=nodes.map(n=>({data:n,position:initial.get(n.id)})).concat(links.map(e=>({data:e})));
    this.cy.json({elements:data});
    this.cy.style().update();this.select(this.selected);
    if(!nodes.length)return;
    const animate=!matchMedia('(prefers-reduced-motion: reduce)').matches;
-   const initial=new Map(nodes.map(n=>[n.id,n.initial]));
+   if(nodes.length>200){
+    // Barnes-Hut repulsion off-thread, with soft anchors for existing positions.
+    const worker=new Worker('layout-worker.min.js');this.layoutWorker=worker;
+    const cy=this.cy;
+    if(reset)cy.fit(undefined,35);
+    worker.onmessage=({data:positions})=>{
+     if(this.layoutWorker!==worker)return;
+     worker.terminate();this.layoutWorker=null;
+     this.layout=cy.layout({name:'preset',positions,fit:reset,padding:35,animate:animate&&nodes.length<1500,animationDuration:240});this.layout.run();
+    };
+    worker.onerror=()=>{if(this.layoutWorker===worker){worker.terminate();this.layoutWorker=null;console.warn('Large-map layout unavailable; retaining placed nodes')}};
+    worker.postMessage({nodes:nodes.map(n=>{const p=initial.get(n.id);return {id:n.id,x:p.x,y:p.y,x0:p.x,y0:p.y,old:old.has(n.id),radius:size(n,this.settings)*1.2,anchor:n.anchor}}),links:links.map(e=>({source:e.source,target:e.target})),spacing,repulsion:this.settings.repulsion,cluster});
+    return
+   }
+   const canonical=new Map(nodes.map(n=>[n.id,n.initial]));
    // Compute targets from canonical coordinates, then animate from the actual current view.
-   this.cy.nodes().positions(n=>initial.get(n.id()));
+   this.cy.nodes().positions(n=>canonical.get(n.id()));
    if(!cluster&&nodes.length>1)this.cy.layout({name:'cose',animate:false,randomize:false,fit:false,idealEdgeLength:spacing,nodeRepulsion:spacing*100*this.settings.repulsion}).run();
    const target=Object.fromEntries(this.cy.nodes().map(n=>[n.id(),{...n.position()}]));
    if(animate&&!reset)this.cy.nodes().positions(n=>old.get(n.id())||target[n.id()]);

@@ -28,10 +28,10 @@
 <div id="generation-settings">
 <label>Rank by <select id="ranking"><option value="popular">Popularity</option><option value="degree">Connectivity</option><option value="balanced">More diversity</option></select></label>
 <label title="Fraction of eligible connections, limited by the caps below">Draw fraction <input id="fraction" type="range" min="0" max="1" step="0.05" value="0.4"></label>
-<label title="Reduces the branch budget at each additional hop">Decay <input id="decay" type="range" min="0" max="1" step="0.05" value="0.5"></label>
-<label>Depth <input id="depth" type="number" min="1" max="4" value="1"></label>
-<label>Max per artist <input id="max-branch" type="number" min="1" max="100" value="16"></label>
-<label>Max connections <input id="max-connections" type="number" min="0" max="500" value="100"></label>
+<label title="Reduces the branch budget at each additional hop">Decay <input id="decay" type="range" min="0" max="1" step="0.05" value="0.65"></label>
+<label>Depth <input id="depth" type="number" min="1" max="8" value="3"></label>
+<label>Max per artist <input id="max-branch" type="number" min="1" max="250" value="16"></label>
+<label>Links per growth <input id="max-connections" type="number" min="0" max="1000" value="100"></label>
 <label>Variation <input id="variation" type="range" min="0" max="1" step="0.01" value="0.12"></label>
 <button id="shuffle" type="button" disabled>Shuffle</button> <small id="generation-summary" aria-live="polite"></small>
 <label><input id="cross-links" type="checkbox"> Connect artists already on map</label>
@@ -54,7 +54,7 @@
 <div id="status" role="status" aria-live="polite"></div>
 <div id="map-tools" hidden>
 <div id="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="true">2D</button><button type="button" data-dimension="3D" aria-pressed="false">3D</button></div>
-<button id="fit" type="button">Fit</button><small id="map-count"></small>
+<button id="fit" type="button">Fit</button><button id="grow" type="button" hidden>Grow map</button><small id="map-count"></small>
 </div>
 <section id="detail" aria-live="polite"></section>
 <div id="network" hidden aria-label="Interactive graph"></div>

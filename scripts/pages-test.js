@@ -49,6 +49,16 @@ const {server,metrics}=require('./test-server')(process.argv[2],{failFirstRange:
   const expanded=await query('/api/generate',{...root,exclude:web.links.map(e=>e.to.id)});
   assert.ok(expanded.links.every(e=>!web.links.some(old=>old.to.id===e.to.id)));
   assert.equal(expanded.links.length,Math.min(4,web.total-web.links.length));
+  const tree=await query('/api/generate',{...root,depth:3,maxBranch:8,maxConnections:40,fraction:1});
+  assert.ok(tree.links.length>tree.links.filter(e=>e.from.id===tree.root.id).length,'automatic growth reaches beyond the root');
+  const known=[tree.root.id,...new Set(tree.links.map(e=>e.to.id))];
+  const frontier=known.slice(1,9);
+  const growth=await query('/api/generate',{...root,depth:1,maxBranch:8,maxConnections:30,known,frontier,freshOnly:true});
+  assert.ok(growth.links.length>0);
+  assert.ok(growth.links.every(e=>!known.includes(e.to.id)));
+  assert.equal(new Set(growth.links.map(e=>e.to.id)).size,growth.links.length);
+  assert.ok(new Set(growth.links.map(e=>e.from.id)).size>1,'growth distributed across branches');
+  console.log('Balanced growth',tree.links.length,'initial links;',growth.links.length,'new links from',new Set(growth.links.map(e=>e.from.id)).size,'sources');
   const repeated=await query('/api/generate',root);
   assert.deepEqual(repeated.links,web.links);
   const small=await query('/api/generate',{...root,maxBranch:2,seed:23,variation:.5});

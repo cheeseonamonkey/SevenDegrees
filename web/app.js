@@ -26,36 +26,37 @@ async function api(path,params={},options={}){
 }
 
 const model=new AtlasMap(),pages=new Map();
-const MAX_NODES=matchMedia('(max-width:760px)').matches?240:500;
+const growth=new Map(),spent=new Set();
 let mode='explore',dimension='2D',operation,inspection,routeSet=[],routeIndex=0,seed=0,rootID=null,rootTotal=0,selectedID=null,refreshTimer;
 const viewer=new MapViewer($('network'),{onNode:selectNode,onLink:selectLink,onFallback:()=>{dimension='2D';syncDimension()}});
 const policy=()=>Object.fromEntries(Array.from(document.querySelectorAll('#filter-options input'),e=>[e.name,e.checked]));
-const generation=()=>({seed,ranking:$('ranking').value,variation:Number($('variation').value),fraction:Number($('fraction').value),decay:Number($('decay').value),depth:Number($('depth').value),maxBranch:Number($('max-branch').value),maxConnections:Math.min(MAX_NODES-1,Number($('max-connections').value))});
+const generation=()=>({seed,ranking:$('ranking').value,variation:Number($('variation').value),fraction:Number($('fraction').value),decay:Number($('decay').value),depth:Number($('depth').value),maxBranch:Number($('max-branch').value),maxConnections:Number($('max-connections').value)});
 function status(text='',busy=false){$('status').replaceChildren(...(text?[busy?spinner(text):el('span',text)]:[]))}
 function begin(text){
  clearTimeout(refreshTimer);operation?.abort();operation=new AbortController();const signal=operation.signal;
- status(text,true);$('status').append(button('Cancel',()=>{operation.abort();$('submit').disabled=false;status('Cancelled')}));
- $('submit').disabled=true;
+ status(text,true);$('status').append(button('Cancel',()=>{operation.abort();$('submit').disabled=false;$('grow').disabled=false;status('Cancelled')}));
+ $('submit').disabled=true;$('grow').disabled=true;
  return {signal,progress:p=>{if(!signal.aborted){const n=$('status').querySelector('.loading span:last-child');if(n)n.textContent=p.message+(p.visited?' · '+p.visited.toLocaleString():'')}}};
 }
-function finish(opt,text=''){if(!opt.signal.aborted){$('submit').disabled=false;status(text)}}
+function finish(opt,text=''){if(!opt.signal.aborted){$('submit').disabled=false;$('grow').disabled=false;status(text)}}
 function inspect(){inspection?.abort();inspection=new AbortController();$('records').replaceChildren();return inspection}
 function clearMap(){
- clearTimeout(refreshTimer);rootID=selectedID=null;rootTotal=0;$('shuffle').disabled=true;$('generation-summary').textContent='';$('settings-summary').textContent='';
+ clearTimeout(refreshTimer);rootID=selectedID=null;rootTotal=0;growth.clear();spent.clear();$('shuffle').disabled=true;$('generation-summary').textContent='';$('settings-summary').textContent='';
  inspect();dimensionRequest++;model.clear();pages.clear();routeSet=[];viewer.destroy();$('network').hidden=true;$('map-tools').hidden=true;$('export').disabled=true;$('detail').replaceChildren();$('result').replaceChildren()
 }
 function syncDimension(){for(const b of $('dimension').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.dimension===dimension))}
 function draw(fit=false,relayout=true){
  $('network').hidden=false;$('map-tools').hidden=false;$('export').disabled=false;
  viewer.mode(dimension);viewer.update(model,fit,relayout);
- $('map-count').textContent=model.nodes.size+' artists · '+model.links.size+' links';
+ $('map-count').textContent=model.nodes.size.toLocaleString()+' artists · '+model.links.size.toLocaleString()+' links';
+ $('grow').hidden=!staticMode||[...model.nodes.values()].some(n=>n.community);
  $('settings-summary').textContent=rootID?'· '+model.links.size+' links':'';
  generationSummary();
 }
 function heading(name,text){$('result').replaceChildren(el('h2',name));if(text)$('result').append(el('p',text))}
 function permalink(id){const u=new URL(location.href);if(id)u.searchParams.set('artist',id);else u.searchParams.delete('artist');history.replaceState(null,'',u)}
 function setMode(next,clear=true){
- if(clear){permalink();operation?.abort();closeOptions.forEach(fn=>fn());clearMap();status();$('submit').disabled=false}
+ if(clear){permalink();operation?.abort();closeOptions.forEach(fn=>fn());clearMap();status();$('submit').disabled=false;$('grow').disabled=false}
  mode=next;$('destination').hidden=next==='explore';$('to').required=next==='path';
  $('generation-settings').hidden=next==='path'||!staticMode;$('submit').textContent=next==='path'?'Find connections':'Explore';
  for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===next));
@@ -65,19 +66,21 @@ function appendLinks(links){
 }
 function appendPage(p){
  model.addNode(p.root);
- const remaining=Math.max(0,generation().maxConnections-model.links.size);
+ const remaining=generation().maxConnections;
  let added=0;
  for(const e of p.steps){
-  if(added>=remaining||(!model.nodes.has(e.to.id)&&model.nodes.size>=MAX_NODES))break;
+  if(added>=remaining)break;
   const before=model.links.size;model.addConnection(p.root.id,e);added+=model.links.size-before;
  }
  pages.set(p.root.id,p.next);
 }
-async function crossLinks(opt){
+async function crossLinks(opt,previous=new Set(),used=model.links.size){
  if(!staticMode||!$('cross-links').checked||model.nodes.size<3)return false;
- const settings=generation(),remaining=settings.maxConnections-model.links.size;
- if(remaining<=0)return;
- const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,maxConnections:remaining},opt);
+ const settings=generation(),remaining=settings.maxConnections-used;
+ if(remaining<=0)return false;
+ const sources=[...model.nodes.keys()].filter(id=>!previous.has(id));
+ if(!sources.length)return false;
+ const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],sources,existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,maxConnections:remaining},opt);
  if(!opt.signal.aborted){appendLinks(edges);return edges.length>0}
 }
 function generationSummary(){
@@ -85,18 +88,18 @@ function generationSummary(){
  const o=generation(),direct=[...model.links.values()].filter(e=>e.source===rootID||e.target===rootID).length;
  const budget=Math.min(o.maxBranch,Math.ceil(rootTotal*o.fraction),o.maxConnections);
  const capped=budget<Math.ceil(rootTotal*o.fraction);
- $('generation-summary').textContent=direct+' / '+rootTotal.toLocaleString()+' direct · '+model.links.size+' links'+(capped?' · capped':'');
+ $('generation-summary').textContent=direct+' / '+rootTotal.toLocaleString()+' direct · '+model.links.size+' links'+(capped?' · initial batch capped':'');
 }
 async function openArtist(value,opt,refresh=false){
  const config=generation();
  const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...config},opt);
  if(opt.signal.aborted)return;
  const selected=refresh?selectedID:null;
- if(refresh){inspect();model.clear();pages.clear()}else clearMap();
+ if(refresh){inspect();model.clear();pages.clear();growth.clear();spent.clear()}else clearMap();
  rootID=p.root.id;rootTotal=p.total;$('shuffle').disabled=!staticMode;
  model.addNode({...p.root,root:true});
  if(staticMode)appendLinks(p.links);else appendPage(p);
- heading(p.root.name,p.total.toLocaleString()+' direct connections. Select an artist to expand; select a link for evidence.');
+ heading(p.root.name,p.total.toLocaleString()+' direct connections. Grow the whole map, or select an artist to expand their connections.');
  draw(!refresh);selectNode(model.nodes.has(selected)?selected:p.root.id);permalink(p.root.id);
  const added=await crossLinks(opt);if(opt.signal.aborted)return;
  if(added)draw(false);
@@ -113,7 +116,7 @@ function refreshGraph(){
  },180)
 }
 function renderRoute(index){
- const p=routeSet[index];if(!p)return;routeIndex=index;selectedID=null;viewer.select(null);inspect();model.clear();pages.clear();$('detail').replaceChildren();
+ const p=routeSet[index];if(!p)return;routeIndex=index;selectedID=null;viewer.select(null);inspect();model.clear();pages.clear();growth.clear();spent.clear();$('detail').replaceChildren();
  model.addNode(p.start);let from=p.start;
  heading('Connection path',p.degrees+' '+(p.degrees===1?'degree':'degrees')+' of separation');
  if(routeSet.length>1){
@@ -142,7 +145,7 @@ function selectNode(id){
  const panel=$('detail');panel.replaceChildren(el('strong',n.name));
  if(n.community){panel.append(el('small',n.size.toLocaleString()+' artists; representative names, not genres.'));for(const a of n.artists)panel.append(button(a.name,()=>searchArtist(a)));return}
  if(n.type||n.disambiguation)panel.append(el('small',[n.type,n.disambiguation].filter(x=>x&&x!=='Unknown').join(' · ')));
- const expand=button('Expand',()=>expandNode(id));expand.disabled=model.links.size>=generation().maxConnections||pages.get(id)===null;
+ const expand=button('Expand',()=>expandNode(id));expand.disabled=pages.get(id)===null;
  panel.append(document.createTextNode(' '),expand,listen(n.name));
  if(staticMode)panel.append(button('Evidence',()=>showEvidence(id)),button('Memberships',()=>showTimeline(id)));
  if(routeSet.length){
@@ -151,19 +154,39 @@ function selectNode(id){
   if(i>=0&&i<chain.length-1)panel.append(button('Next',()=>selectNode(chain[i+1].id)))
  }
 }
-async function expandNode(id){
- const opt=begin('Expanding…');
+async function extendMap(id,frontier){
+ const opt=begin(frontier?'Growing map…':'Expanding…');
  try{
-  const settings=generation(),remaining=settings.maxConnections-model.links.size;
-  if(remaining<=0){finish(opt,'Map connection limit reached.');return}
+  const settings=generation(),before=model.links.size,previous=new Set(model.nodes.keys());
   if(staticMode){
-   const exclude=[...new Set([...model.links.values()].filter(e=>e.source===id||e.target===id).map(e=>e.source===id?e.target:e.source))];
-   const p=await api('/api/generate',{artist:id,...policy(),...settings,depth:1,maxConnections:remaining,exclude},opt);
-   if(opt.signal.aborted)return;appendLinks(p.links);if(!p.links.length)pages.set(id,null);
-  }else{const p=await api('/api/neighbors',{artist:id,...policy(),offset:pages.get(id)||0},opt);if(opt.signal.aborted)return;appendPage(p)}
-  await crossLinks(opt);if(opt.signal.aborted)return;draw(false);selectNode(id);finish(opt)
+   const exclude=frontier?[]:[...new Set([...model.links.values()].filter(e=>e.source===id||e.target===id).map(e=>e.source===id?e.target:e.source))];
+   const p=await api('/api/generate',{artist:id,...policy(),...settings,depth:1,known:[...previous],exclude,...(frontier?{frontier,freshOnly:true}:{})},opt);
+   if(opt.signal.aborted)return;
+   appendLinks(p.links);
+   if(frontier){for(const a of frontier)growth.set(a,(growth.get(a)||0)+1);for(const a of p.exhausted)spent.add(a)}
+   else if(!p.links.length&&p.exhausted.includes(id))pages.set(id,null);
+  }else{
+   const p=await api('/api/neighbors',{artist:id,...policy(),offset:pages.get(id)||0},opt);if(opt.signal.aborted)return;appendPage(p)
+  }
+  const added=model.links.size-before;
+  if(added){draw(false);selectNode(frontier&&model.nodes.has(selectedID)?selectedID:id)}
+  await crossLinks(opt,previous,added);if(opt.signal.aborted)return;
+  if(model.links.size>before+added)draw(false);
+  if(!added)selectNode(frontier&&model.nodes.has(selectedID)?selectedID:id);
+  finish(opt,model.links.size>before?'Added '+(model.links.size-before).toLocaleString()+' links':frontier?'No new artists in this round. Try Grow map again or expand an artist.':'No more connections in this batch.')
  }catch(e){finish(opt,e.message)}
 }
+function expandNode(id){return extendMap(id)}
+$('grow').onclick=async()=>{
+ if(!model.nodes.size)return;
+ const adjacent=new Map([...model.nodes.keys()].map(id=>[id,new Set()]));
+ for(const e of model.links.values()){adjacent.get(e.source)?.add(e.target);adjacent.get(e.target)?.add(e.source)}
+ const candidates=[...model.nodes.keys()].filter(id=>!spent.has(id)&&(model.nodes.get(id).connections??Infinity)>adjacent.get(id).size);
+ if(!candidates.length){status('No unexplored connections remain in this map.');return}
+ // Rotate through the least-explored branches, avoiding exhausted leaves.
+ candidates.sort((a,b)=>(growth.get(a)||0)-(growth.get(b)||0)||adjacent.get(a).size-adjacent.get(b).size||a.localeCompare(b));
+ await extendMap(rootID||model.nodes.keys().next().value,candidates.slice(0,32))
+};
 function selectLink(id){
  const e=model.links.get(id);if(!e)return;selectedID=null;viewer.select(null);inspect();const a=model.nodes.get(e.source),b=model.nodes.get(e.target);
  $('detail').replaceChildren(el('p',e.description||connectionText(a,b,e)));
@@ -287,7 +310,7 @@ function filters(categories){
   const swatch=el('i',undefined,'swatch');swatch.style.background=c.color||relationshipTypes[key]?.color||'#888';row.append(input,swatch,document.createTextNode(c.label));$('filter-options').append(row)
  }
  const count=()=>$('filter-count').textContent='('+document.querySelectorAll('#filter-options input:checked').length+'/'+Object.keys(choices).length+')';
- count();$('filter-options').onchange=()=>{count();if(model.nodes.size||$('submit').disabled){operation?.abort();clearMap();$('submit').disabled=false;status('Relationships changed. Run the search again.')}}
+ count();$('filter-options').onchange=()=>{count();if(model.nodes.size||$('submit').disabled){operation?.abort();clearMap();$('submit').disabled=false;$('grow').disabled=false;status('Relationships changed. Run the search again.')}}
 }
 filters(relationshipTypes);$('api-link').hidden=!staticMode;$('overview').hidden=!staticMode;$('generation-settings').hidden=!staticMode;
 api('/api/stats').then(s=>$('stats').textContent=s.artist.toLocaleString()+' artists · '+s.fact.toLocaleString()+' evidence records').catch(e=>$('stats').textContent=e.message);

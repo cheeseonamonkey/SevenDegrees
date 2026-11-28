@@ -1,2 +1,4 @@
 
 web/force-graph-3d.min.js -diff -whitespace linguist-generated=true
+
+web/layout-worker.min.js -diff -whitespace linguist-generated=true

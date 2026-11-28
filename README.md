@@ -147,7 +147,7 @@ The vanilla JS worker keeps the interface responsive. The full-window atlas
 uses Cytoscape.js by default, with on-demand 3D Force Graph (Three.js). The
 optional global view displays 40 large Leiden communities and up to 90 links (not genre classifications);
 all connected artists remain searchable. Local maps retain expansion state,
-have mobile/desktop display limits, and export to JSON. Five independent
+grow incrementally without a fixed cumulative cap, and export to JSON. Five independent
 category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance. The overview
 is an unfiltered aggregate of the original graph.
 
@@ -175,18 +175,20 @@ so dynamic queries execute in the shared client, not as server-side routes.
 
 ### Ranked web generation
 
-The map settings expose a draw fraction (default 0.4), decay per hop (0.5),
-depth (1), max per artist (16), and total edge budget (100). Explore generates
-a ranked map at the chosen depth; selecting a node and pressing Expand adds
-new ranked neighbors without repeating already drawn connections. At hop
-`d`, the eligible-neighbor fraction and branch cap are multiplied by
-`decay ** d` and rounded up. The total budget is a hard limit for generated
-webs. The phone UI additionally limits the number of visible nodes.
-Popularity is the default ranking, with a small negative graph-degree
-weight to avoid concentrating on hubs. Degree-only and a stronger diversity
-bias are optional. Seeded random variation (default 0.12) changes generated
-webs without changing facts. The optional cross-links setting adds links among mapped artists using a small
-shared-neighbor bonus and the same ranking and edge budget.
+The map settings expose a draw fraction (default 0.4), decay per hop (0.65),
+depth (3), max per artist (16), and per-operation link budget (100).
+Explore reserves capacity for later layers and allocates each layer round-robin,
+preferring new artists. Grow map chooses up to 32 least-explored branches and
+adds fresh artists; Expand adds more connections for one selected artist.
+Neither operation has a lifetime display cap. Per-request limits (1,000 links,
+250 per artist, 8 layers) bound work rather than total map size.
+At hop `d`, the eligible-neighbor fraction and branch cap are multiplied by
+`decay ** d`. The ranking favors popularity, with a small hub penalty and a
+bounded bonus for artists with onward connections. Seeded variation is
+deterministic. Optional cross-links scan newly added artists against the map.
+Large 2D maps use an off-thread Barnes–Hut force layout with soft anchors for
+existing positions. Device memory and rendering performance remain practical
+limits. Rebuild the checked-in layout worker with `npm ci && npm run build:layout`.
 The compact rank index is derived from the installed graph during Pages
 assembly and loaded only for ranked operations; pathfinding remains exact
 and unaffected by display limits.

@@ -4,9 +4,10 @@ function createGraph(store){
  const norm=s=>s.normalize('NFKC').toLowerCase().trim();
  const key=s=>Array.from(new TextEncoder().encode(Array.from(s).slice(0,2).join('')),x=>x.toString(16).padStart(2,'0')).join('');
  const simple=a=>({id:a.id,name:a.name});
+ const ordinals=new Map();
  async function artists(ids){
   const [people,types]=await Promise.all([rows('artist',ids),manifest.sections.profile?rows('profile',ids):Promise.resolve([])]);
-  return people.map((a,i)=>({...simple(a),...(types[i]?{type:types[i][0],disambiguation:types[i][1]}:{})}));
+  return people.map((a,i)=>{ordinals.set(a.id,ids[i]);return {...simple(a),...(types[i]?{type:types[i][0],disambiguation:types[i][1]}:{})}});
  }
  const artist=async i=>(await artists([i]))[0];
  const lowerBound=(list,match)=>{let lo=0,hi=list.length;while(lo<hi){const m=(lo+hi)>>>1;if(match(list[m]))lo=m+1;else hi=m}return lo};
@@ -54,11 +55,12 @@ function createGraph(store){
  }
  async function resolve(value,progress){
   const id=value.trim(),q=norm(id);
+  if(ordinals.has(q))return ordinals.get(q);
   if(/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(id)){
    const starts=await directory("artist_starts");
    let lo=0,hi=starts.length;
    while(lo<hi){const mid=(lo+hi)>>>1;if(starts[mid]<=q)lo=mid+1;else hi=mid}
-   if(lo){const block=(await blocks('artist',[lo-1]))[0];const i=block.findIndex(a=>a.id===q);if(i>=0)return (lo-1)*manifest.sections.artist.block_size+i}
+   if(lo){const block=(await blocks('artist',[lo-1]))[0];const i=block.findIndex(a=>a.id===q);if(i>=0){const ordinal=(lo-1)*manifest.sections.artist.block_size+i;ordinals.set(q,ordinal);return ordinal}}
   }
   const found=await candidates(q,progress,true);
   if(found.length!==1)throw Error(found.length?'Ambiguous artist; choose a search result.':'Artist not found.');
@@ -85,7 +87,7 @@ function createGraph(store){
   };
   const ranking=p.ranking??'popular';
   if(!['popular','degree','balanced'].includes(ranking))throw Error('Invalid ranking');
-  return {ranking,fraction:number('fraction',.4,0,1),decay:number('decay',.5,0,1),depth:number('depth',2,1,4,true),maxBranch:number('maxBranch',16,1,100,true),maxConnections:number('maxConnections',100,0,500,true),variation:number('variation',.12,0,1),seed:number('seed',0,0,4294967295,true)};
+  return {ranking,fraction:number('fraction',.4,0,1),decay:number('decay',.65,0,1),depth:number('depth',3,1,8,true),maxBranch:number('maxBranch',16,1,250,true),maxConnections:number('maxConnections',100,0,1000,true),variation:number('variation',.12,0,1),seed:number('seed',0,0,4294967295,true)};
  };
  async function rankingData(){
   if(!manifest.ranking)throw Error('Ranking index unavailable in this snapshot');
@@ -102,37 +104,76 @@ function createGraph(store){
   x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);
   return ((x^(x>>>16))>>>0)/4294967296-.5;
  }
+ const pairKey=(a,b)=>a<b?a+':'+b:b+':'+a;
  async function generate(name,filter,params,progress=()=>{}){
   const o=options(params),root=await resolve(name,progress),rank=await rankingData();
-  const visited=new Map([[root,0]]),chosen=[],links=new Set();
-  if(params.exclude!==undefined){
-   if(!Array.isArray(params.exclude)||params.exclude.length>500)throw Error('Invalid exclusion list');
-   for(const id of await Promise.all(params.exclude.map(a=>resolve(a,progress))))links.add(root<id?root+':'+id:id+':'+root);
+  async function resolveList(list=[],max=manifest.stats.artist){
+   if(!Array.isArray(list)||list.length>max)throw Error('Invalid artist list');
+   const ids=[];
+   for(let i=0;i<list.length;i+=128)ids.push(...await Promise.all(list.slice(i,i+128).map(id=>resolve(id,progress))));
+   return ids
   }
-  const rootRow=(await rows("topology",[root]))[0];
-  let frontier=[root],total=uniqueNeighbors(rootRow,filter).size;
-  for(let depth=0;depth<o.depth&&frontier.length;depth++){
-   const next=[];
-   for(let pos=0;pos<frontier.length&&chosen.length<o.maxConnections;pos+=16){
-    const batch=frontier.slice(pos,pos+16),data=depth===0?[rootRow]:await rows('topology',batch);
-    progress({message:'Generating map',visited:visited.size});
-    for(let j=0;j<batch.length&&chosen.length<o.maxConnections;j++){
+  const [known,sources,excluded]=await Promise.all([resolveList(params.known),resolveList(params.frontier??[name],64),resolveList(params.exclude)]);
+  const visited=new Set([root,...known,...sources]),chosen=[],links=new Set(excluded.map(id=>pairKey(root,id))),exhausted=[];
+  const total=uniqueNeighbors((await rows('topology',[root]))[0],filter).size;
+  let frontier=[...new Set(sources)];
+  for(let depth=0;depth<o.depth&&frontier.length&&chosen.length<o.maxConnections;depth++){
+   const next=[],queues=[],decay=o.decay**depth;
+   if(o.fraction===0||decay===0)break;
+   // Load the whole frontier before allocating edges: no first-artist monopoly.
+   for(let pos=0;pos<frontier.length;pos+=16){
+    const batch=frontier.slice(pos,pos+16),data=await rows('topology',batch);
+    progress({message:'Reading branches',visited:visited.size});
+    for(let j=0;j<batch.length;j++){
      const from=batch[j],pairs=uniqueNeighbors(data[j],filter);
-     if(depth===0)total=pairs.size;
-     const candidates=[...pairs].filter(([to])=>!links.has(from<to?from+':'+to:to+':'+from)).map(([to,w])=>[to,w,score(to,rank,o.ranking)+jitter(o.seed,from,to)*o.variation*8]);
+     const candidates=[...pairs].filter(([to])=>!links.has(pairKey(from,to))&&(!params.freshOnly||!visited.has(to))).map(([to,w])=>{
+      const degree=rank.degree[to]||0;
+      // Prefer artists that can lead somewhere, without rewarding giant hubs.
+      const branch=0.32*Math.min(4,Math.log1p(degree))-(degree<=1?.65:0);
+      return [to,w,score(to,rank,o.ranking)+branch+jitter(o.seed,from,to)*o.variation*8]
+     });
      candidates.sort((a,b)=>b[2]-a[2]||a[0]-b[0]);
-     const fraction=o.fraction*Math.pow(o.decay,depth);
-     const budget=Math.min(Math.ceil(o.maxBranch*Math.pow(o.decay,depth)),Math.ceil(pairs.size*fraction),o.maxConnections-chosen.length);
-     for(const [to,w] of candidates.slice(0,budget)){
-      links.add(from<to?from+':'+to:to+':'+from);chosen.push([from,to,w]);
-      if(!visited.has(to)){visited.set(to,depth+1);next.push(to)}
-     }
+     const budget=Math.min(Math.ceil(o.maxBranch*decay),Math.ceil(pairs.size*o.fraction*decay));
+     if(!candidates.length&&depth===0)exhausted.push(from);
+     if(budget&&candidates.length)queues.push({from,candidates,budget,cursor:0,used:0});
     }
+   }
+   // Reserve capacity for deeper layers, and share this layer in rounds.
+   const remaining=o.maxConnections-chosen.length;
+   const target=chosen.length+Math.ceil(remaining/(o.depth-depth));
+   function take(q,fresh){
+    while(q.cursor<q.candidates.length){
+     const [to,w]=q.candidates[q.cursor];
+     if(links.has(pairKey(q.from,to))||((params.freshOnly||fresh)&&visited.has(to))){q.cursor++;continue}
+     q.cursor++;q.used++;links.add(pairKey(q.from,to));chosen.push([q.from,to,w]);
+     if(!visited.has(to)){visited.add(to);next.push(to)}
+     return true
+    }
+    return false
+   }
+   function rounds(fresh,limit){
+    let active=queues.filter(q=>q.used<q.budget);
+    while(active.length&&chosen.length<limit){
+     const again=[];
+     for(const q of active){
+      if(chosen.length>=limit)break;
+      if(take(q,fresh)&&q.used<q.budget)again.push(q)
+     }
+     active=again
+    }
+   }
+   rounds(true,target);
+   // Explicit single-node expansion can eventually reveal remaining cross-links.
+   // Automatic growth spends its budget only on new territory.
+   if(!params.freshOnly&&o.depth===1&&chosen.length<target){
+    for(const q of queues)q.cursor=0;
+    rounds(false,target)
    }
    frontier=next;
   }
-  const steps=await hydrate(chosen.map(([,to,w])=>[to,w])),people=await artists(chosen.map(([from])=>from));
-  return {root:await artist(root),total,links:steps.map((s,i)=>({from:people[i],...s})),settings:o};
+  const [steps,people,done]=await Promise.all([hydrate(chosen.map(([,to,w])=>[to,w])),artists(chosen.map(([from])=>from)),artists(exhausted)]);
+  const withDegree=(a,id)=>({...a,connections:rank.degree[id]||0});
+  return {root:withDegree(await artist(root),root),total,links:steps.map((s,i)=>({...s,from:withDegree(people[i],chosen[i][0]),to:withDegree(s.to,chosen[i][1])})),exhausted:done.map(a=>a.id),settings:o};
  }
  async function neighbors(name,strict=false,offset=0,progress){
   if(!Number.isInteger(offset)||offset<0)throw Error('Invalid neighbor offset');
@@ -177,17 +218,19 @@ function createGraph(store){
   return steps;
  }
  async function mapLinks(names,filter,progress,params){
-  if(!Array.isArray(names)||names.length>500)throw Error('Map limit is 500 artists');
-  const ids=await Promise.all(names.map(name=>resolve(name,progress))),chosen=new Set(ids),pairs=[];
+  if(!Array.isArray(names)||names.length>manifest.stats.artist)throw Error('Invalid artist list');
+  const ids=[];for(let i=0;i<names.length;i+=128)ids.push(...await Promise.all(names.slice(i,i+128).map(name=>resolve(name,progress))));
+  const chosen=new Set(ids),pairs=[],seenPairs=new Set();
+  const scan=params?.sources?new Set(await Promise.all(params.sources.map(name=>resolve(name,progress)))):chosen;
   const size=manifest.sections.topology.block_size,groups=new Map();
-  for(const id of chosen){const key=Math.floor(id/size);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(id)}
+  for(const id of scan){if(!chosen.has(id))continue;const key=Math.floor(id/size);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(id)}
   const keys=[...groups.keys()];
   for(let i=0;i<keys.length;i+=16){
    const batch=keys.slice(i,i+16),data=await blocks('topology',batch);
    progress?.({message:'Connecting mapped artists',visited:i});
    for(let j=0;j<batch.length;j++)for(const from of groups.get(batch[j])){
     const row=data[j][from%size];
-    for(let k=0;k<row.length;k+=2){const to=row[k],w=row[k+1];if(to>from&&chosen.has(to)&&allowed(w,filter))pairs.push([from,to,w])}
+    for(let k=0;k<row.length;k+=2){const to=row[k],w=row[k+1];if(to!==from&&chosen.has(to)&&allowed(w,filter)){const key=pairKey(from,to)+':'+(categorical?w&31:w&1);if(!seenPairs.has(key)){seenPairs.add(key);pairs.push([Math.min(from,to),Math.max(from,to),w])}}}
    }
   }
   let selected=pairs;

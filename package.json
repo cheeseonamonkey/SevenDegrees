@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "mcp": "node mcp.mjs"
+    "mcp": "node mcp.mjs",
+    "build:layout": "esbuild scripts/layout-entry.js --bundle --minify --format=iife --outfile=web/layout-worker.min.js"
   },
   "engines": {
     "node": ">=20"
