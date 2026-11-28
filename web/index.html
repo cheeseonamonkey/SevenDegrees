@@ -3,25 +3,39 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MusicAtlas</title>
+<meta name="theme-color" content="#10161f">
+<title>MusicAtlas — Explore musical connections</title>
 <link rel="stylesheet" href="style.css">
 <script src="cytoscape.min.js" defer></script>
+<script src="force-graph-3d.min.js" defer></script>
+<script src="viewer.js" defer></script>
 <script src="app.js" defer></script>
 </head>
 <body>
-<main>
-<header><h1>MusicAtlas</h1><p>Explore the relationships behind music.</p><small id="stats"></small></header>
-<nav aria-label="Tools"><button type="button" data-mode="explore" aria-pressed="true">Explore map</button><button type="button" data-mode="path" aria-pressed="false">Find connections</button><a href="api/v1/manifest.json" id="api-link" hidden>Data API</a></nav>
-<form id="search">
-<div class="fields"><div class="field"><label for="from">Artist</label><input id="from" value="Tom Morello" autocomplete="off" required><div id="from-options" class="options"></div></div><div class="field" id="destination" hidden><label for="to">Destination</label><input id="to" value="David Bowie" autocomplete="off"><div id="to-options" class="options"></div></div></div>
-<div class="actions"><label><input type="checkbox" id="strict"> Exclude covers and tributes</label><button id="submit" type="submit">Explore</button></div>
-</form>
-<section id="result" aria-live="polite"><p>Start with an artist and expand their network.</p></section>
-<div id="network" hidden aria-label="Interactive graph"></div>
-<div id="map-tools" hidden><button type="button" id="fit">Fit map</button> <button type="button" id="export">Export map</button> <small id="map-count"></small></div>
-<section id="detail" aria-live="polite"></section>
-<section id="evidence-panel" aria-live="polite"></section>
-<footer><a href="https://github.com/cheeseonamonkey/MusicAtlas">Source code</a> · <a href="https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239">Full corpus</a></footer>
+<header class="topbar">
+ <a class="brand" href="./">MusicAtlas</a>
+ <span id="stats" class="muted">Loading index…</span>
+ <nav><a href="api/v1/manifest.json" id="api-link" hidden>API</a><a href="https://github.com/cheeseonamonkey/MusicAtlas/releases">Data</a><a href="https://github.com/cheeseonamonkey/MusicAtlas">Source</a></nav>
+</header>
+<div class="toolbar">
+ <div class="modes"><button id="overview" type="button">Atlas</button><button id="mode" type="button" aria-pressed="false">Find path</button></div>
+ <form id="search" role="search">
+  <div class="field"><label class="sr-only" for="from">Artist</label><input id="from" placeholder="Search people or bands" autocomplete="off" required><div class="options" id="from-options" hidden></div></div>
+  <div class="field" id="destination" hidden><label class="sr-only" for="to">Destination</label><input id="to" placeholder="Connect to…" autocomplete="off"><div class="options" id="to-options" hidden></div></div>
+  <button id="submit" class="primary" type="submit">Explore</button>
+ </form>
+ <details id="filters"><summary>Relationships <span id="filter-count"></span></summary><div id="filter-options"></div></details>
+</div>
+<main class="workspace">
+ <section class="map-pane" aria-label="Music relationship map">
+  <div id="network"></div>
+  <div class="map-caption"><span id="map-count"></span><span id="legend"><i class="person"></i> Person <i class="group"></i> Group <i class="unknown"></i> Other / unknown</span></div>
+  <div class="map-actions"><button id="dimension" type="button" aria-label="Switch map dimension">3D</button><button id="fit" type="button">Fit</button><button id="export" type="button">Export</button></div>
+  <div id="status" role="status" aria-live="polite"></div>
+ </section>
+ <aside class="inspector" aria-label="Map inspector">
+  <div id="detail"></div><div id="records" aria-live="polite"></div>
+ </aside>
 </main>
 </body>
 </html>

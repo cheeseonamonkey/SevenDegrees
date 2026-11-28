@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict');
+const {chromium}=require('playwright');
+const {server}=require('./test-server')(process.argv[2]);
+(async()=>{
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const browser=await chromium.launch({headless:true,args:['--enable-unsafe-swiftshader','--use-angle=swiftshader']});
+ try{
+  for(const viewport of [{width:1280,height:800},{width:390,height:844}]){
+   const page=await browser.newPage({viewport});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+   await page.goto('http://127.0.0.1:'+server.address().port+'/');
+   await page.locator('#filter-options input').first().waitFor({state:'attached'});
+   await page.locator('#from').fill('Tom Morello');
+   await page.locator('#from-options button').first().click({timeout:20000});
+   await page.locator('#detail h1').getByText('Tom Morello',{exact:true}).waitFor({timeout:20000});
+   assert.equal(await page.locator('#dimension').textContent(),'3D');
+   assert.ok(await page.locator('#network canvas').count());
+   await page.locator('#detail').getByRole('button',{name:'Evidence',exact:true}).click();
+   await page.locator('#records .record').first().waitFor({timeout:20000});
+   await page.locator('#dimension').click();
+   assert.equal(await page.locator('#dimension').textContent(),'2D');
+   assert.ok(await page.locator('#network canvas').count());
+   await page.locator('#filters summary').click();
+   if(await page.locator('#filter-options input').count()===5){
+    for(const input of await page.locator('#filter-options input').all())await input.uncheck();
+    await page.locator('#map-count').getByText('1 artists · 0 links',{exact:true}).waitFor({timeout:20000});
+   }
+   assert.deepEqual(errors,[]);
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   console.log('Browser passed',viewport.width,'px');
+   await page.close();
+  }
+ }finally{await browser.close();server.close()}
+})().catch(e=>{console.error(e);server.close();process.exitCode=1});

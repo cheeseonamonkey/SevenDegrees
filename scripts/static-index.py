@@ -9,6 +9,7 @@ import pathlib
 import re
 import unicodedata
 import orjson
+from corpus import source_facts
 
 PACK_BYTES = 16 * 1024 * 1024
 ARTISTS, EDGES, WITNESSES, FACTS, INCIDENCE = 128, 512, 128, 512, 256
@@ -41,19 +42,6 @@ class Pack:
 
 def chunks(values,n):
     for i in range(0,len(values),n): yield values[i:i+n]
-
-def source_facts(seed,bulk):
-    # Bulk facts have already been deduplicated by stable ID. They supersede
-    # overlapping seed facts in the canonical SQLite import order.
-    seeds={}
-    for path in sorted(seed.glob("*.jsonl")):
-        for line in path.open("rb"):
-            f=orjson.loads(line);seeds[f["id"]]=f
-    for path in bulk:
-        with gzip.open(path,"rb") as src:
-            for line in src:
-                f=orjson.loads(line);seeds.pop(f["id"],None);yield f
-    yield from seeds.values()
 
 def build(graph,root,seed,bulk,expected):
     root.mkdir(parents=True,exist_ok=True)
@@ -102,7 +90,7 @@ def build(graph,root,seed,bulk,expected):
         for i in range(start,min(start+EDGES,len(artists))):
             row=adj[offsets[i]:offsets[i+1]]
             for j in range(1,len(row),2):
-                w=row[j];row[j]=(w<<1)|evidence[w][3]
+                w=row[j];row[j]=(w<<5)|evidence[w][3] if g["version"]==3 else (w<<1)|evidence[w][3]
             rows.append(list(row))
         topo.add(rows)
     finish(topo,EDGES)
@@ -140,36 +128,38 @@ def build(graph,root,seed,bulk,expected):
         inv.add([list(row) if row is not None else [] for row in block])
     finish(inv,INCIDENCE)
     stats={**expected,"directed_edges":directed}
-    manifest={"api_version":1,"layout":"range-v1","stats":stats,
+    manifest={"api_version":1,"layout":"range-v1","edge_encoding":"category-v1" if g["version"]==3 else "strict-v1","stats":stats,
               "sections":sections,"artist_starts":starts,"search_directory":directory,
               "full_corpus":"https://github.com/cheeseonamonkey/MusicAtlas/releases/tag/corpus-mb-20261125-002239"}
+    if g["version"]==3:manifest["categories"]=orjson.loads((pathlib.Path(__file__).resolve().parents[1]/"ontology/categories.json").read_bytes())
     (root/"manifest.json").write_bytes(dump(manifest))
     (root/"stats.json").write_bytes(dump(stats))
     total=sum(p.stat().st_size for p in root.iterdir())
     print("complete",stats,"bytes",total,flush=True)
     assert total<950*1024*1024,"Pages size budget exceeded"
 
+def read_blocks(root,m,section):
+    d=m["sections"][section]
+    index=read_json(root/d["index"])
+    handle=None;current=-1
+    try:
+        for pack,offset,size in index:
+            if pack!=current:
+                if handle:handle.close()
+                handle=(root/d["packs"][pack]).open("rb");current=pack
+            handle.seek(offset)
+            yield orjson.loads(gzip.decompress(handle.read(size)))
+    finally:
+        if handle:handle.close()
+
 def verify(root,seed,bulk,expected):
     """Decode every canonical fact and verify its exact round-trip and incidence."""
     m=orjson.loads((root/"manifest.json").read_bytes())
     assert all(m["stats"][k]==v for k,v in expected.items())
-    def read_blocks(section):
-        d=m["sections"][section]
-        index=read_json(root/d["index"])
-        handle=None;current=-1
-        try:
-            for pack,offset,size in index:
-                if pack!=current:
-                    if handle:handle.close()
-                    handle=(root/d["packs"][pack]).open("rb");current=pack
-                handle.seek(offset)
-                yield orjson.loads(gzip.decompress(handle.read(size)))
-        finally:
-            if handle:handle.close()
-    artists=[a for block in read_blocks("artist") for a in block]
+    artists=[a for block in read_blocks(root,m,"artist") for a in block]
     assert len(artists)==expected["artist"]
     incidence=[None]*len(artists)
-    encoded=(f for block in read_blocks("fact") for f in block)
+    encoded=(f for block in read_blocks(root,m,"fact") for f in block)
     n=participants=0
     for f,raw in zip_longest(encoded,source_facts(seed,bulk)):
         assert f is not None and raw is not None, "fact count mismatch"
@@ -186,7 +176,7 @@ def verify(root,seed,bulk,expected):
         if n%1000000==0:print("round-trip verified",n,flush=True)
     assert n==expected["fact"] and participants==expected["participant"]
     i=0
-    for block in read_blocks("incidence"):
+    for block in read_blocks(root,m,"incidence"):
         for row in block:
             assert row==(list(incidence[i]) if incidence[i] is not None else []), ("incidence differs",i)
             i+=1

@@ -1,8 +1,19 @@
 {
-  "name":"musicatlas-mcp",
-  "version":"0.1.0",
-  "private":true,
-  "scripts":{"mcp":"node mcp.mjs"},
-  "engines":{"node":">=20"},
-  "dependencies":{"@modelcontextprotocol/sdk":"1.32.2","zod":"4.6.7"}
+  "name": "musicatlas-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "mcp": "node mcp.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "3d-force-graph": "1.80.3",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.1"
+  }
 }

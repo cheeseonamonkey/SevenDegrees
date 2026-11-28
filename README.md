@@ -143,8 +143,13 @@ round-trips every fact against the canonical release and verifies incidence.
 The client coalesces close ranges, deduplicates in-flight requests, uses eight
 concurrent reads and an 8 MiB compressed-weight LRU cache. Bidirectional BFS
 reads topology first and retrieves artist names/evidence only for its result.
-The vanilla JS worker keeps the interface responsive. Cytoscape.js displays
-expandable maps (up to 240 artists per view), with pagination and JSON export.
+The vanilla JS worker keeps the interface responsive. The full-window atlas
+uses 3D Force Graph (Three.js) with Cytoscape.js as a 2D fallback. The global
+view renders the 100 largest Leiden communities (not genre classifications);
+all connected artists remain searchable. Local maps retain expansion state,
+have mobile/desktop display limits, and export to JSON. Five independent
+category switches constrain traversal and timeline exploration. The overview
+is an unfiltered aggregate of the original graph.
 
 This is a read-only static file API, not a server accepting arbitrary SPARQL
 or dynamic RPC requests. The shared graph client provides logical search,
@@ -161,7 +166,7 @@ npm run mcp
 
 Configure a local MCP client with command `node` and argument
 `/absolute/path/to/MusicAtlas/mcp.mjs`. Tools: `music_stats`,
-`music_search`, `music_path`, `music_neighbors`, `music_evidence`.
+`music_search`, `music_path`, `music_neighbors`, `music_evidence`, `music_profile`.
 The official SDK provides stdio transport, using the same lazy static client
 as the website. No credentials or writes. Pages itself cannot host a dynamic
 MCP transport.
@@ -204,3 +209,33 @@ Publication verifies exact round-trip and incidence, checks the full archive
 size, and exercises the HTTP range client before uploading the static index
 and SHA256. Actions verifies the archive digest and deploys immutable
 versioned files. The build archive is downloaded by CI, never by the browser.
+
+### People, bands and portable OWL
+
+The MusicBrainz core dump contains 2,359,441 typed artist profiles and 815,274
+professional relationship assertions in the selected musical relationship types.
+These include 665,920 band memberships; 164,661 have at least one date field.
+The temporal source records retain partial dates, ended flags, attributes and
+individual assertion IDs. Unknown dates do not establish active membership.
+The web index currently includes 737,790 assertions whose endpoints both occur
+in its 1,595,768-artist graph. The remaining entities and assertions are
+retained for the portable OWL export. The original 7,744,208 canonical facts
+remain available without loss. The corpus is not an exhaustive mirror of all
+MusicBrainz tables or all music sources.
+
+```sh
+# Existing verified dump; recover typed entities and date-qualified relationships.
+uv run --no-project --with orjson==3.11.4 scripts/people.py extract .cache/people \
+  --archive "$bulk/mbdump.tar.bz2" --stage "$bulk/stage.sqlite"
+# Build the sorted search index and aggregated community map.
+uv run --no-project --with orjson==3.11.4 --with igraph==1.0.0 --with numpy==2.5.5 \
+  scripts/atlas.py .cache/full/graph.json.gz .cache/range/atlas --seed "$bulk/seed"
+uv run --no-project --with orjson==3.11.4 scripts/people.py pack .cache/people --index .cache/range/atlas
+./degrees -db "$bulk/graph.sqlite" export-static | gzip -n -5 > .cache/full/categories.json.gz
+uv run --no-project --with orjson==3.11.4 scripts/topology.py .cache/full/categories.json.gz .cache/range/atlas
+scripts/publish-range.sh .cache/range/atlas
+```
+
+The separate single-file OWL release is Turtle gzip (`MusicAtlas.ttl.gz`);
+it embeds the ontology and source assertions without requiring remote imports.
+The website consumes the independently built range index, not the OWL archive.

@@ -18,7 +18,7 @@ type staticGraph struct {
 	Version   int            `json:"version"`
 	Artists   []staticArtist `json:"artists"`
 	Strings   []string       `json:"strings"`
-	Evidence  [][4]int       `json:"evidence"` // kind, title, source, strict eligibility
+	Evidence  [][4]int       `json:"evidence"` // kind, title, source, relationship category bit
 	Offsets   []int          `json:"offsets"`
 	Adjacency []int          `json:"adjacency"`
 	Facts     int            `json:"facts"`
@@ -43,7 +43,7 @@ func (d *dictionary[T]) intern(v T) int {
 }
 
 func exportStatic(db *sql.DB, out io.Writer) error {
-	g := staticGraph{Version: 2, Offsets: []int{0}}
+	g := staticGraph{Version: 3, Offsets: []int{0}}
 	rows, e := db.Query("SELECT a.id,a.name,b.name FROM artist a LEFT JOIN alias b ON a.id=b.artist ORDER BY a.id,b.name")
 	if e != nil {
 		return e
@@ -80,14 +80,10 @@ func exportStatic(db *sql.DB, out io.Writer) error {
 		kind, title, source, id string
 		rank                    int
 	}
-	type target struct{ to, strict int }
+	type target struct{ to, category int }
 	edges := make([]map[target]*witness, len(g.Artists))
 	add := func(from, to int, w *witness) {
-		strict := 0
-		if strictEdge(w.kind) {
-			strict = 1
-		}
-		k := target{to, strict}
+		k := target{to, categoryBits[w.kind]}
 		if edges[from] == nil {
 			edges[from] = make(map[target]*witness)
 		}
@@ -167,11 +163,11 @@ func exportStatic(db *sql.DB, out io.Writer) error {
 			if a.to != b.to {
 				return a.to < b.to
 			}
-			return a.strict > b.strict
+			return a.category < b.category
 		})
 		for _, k := range keys {
 			w := adj[k]
-			index := evidence.intern([4]int{strings.intern(w.kind), strings.intern(w.title), strings.intern(w.source), k.strict})
+			index := evidence.intern([4]int{strings.intern(w.kind), strings.intern(w.title), strings.intern(w.source), k.category})
 			g.Adjacency = append(g.Adjacency, k.to, index)
 		}
 		g.Offsets = append(g.Offsets, len(g.Adjacency))

@@ -10,17 +10,21 @@ import json,sys
 m=json.load(open(sys.argv[1]))
 s={k:int(v) for k,v in (line.split(": ") for line in open(sys.argv[2]))}
 assert all(m["stats"][k]==v for k,v in s.items()), (m["stats"],s)
-assert m["layout"]=="range-v1"
+assert m["layout"]=="range-v1" and m["edge_encoding"]=="category-v1"
+assert m["people_stats"]["musical_statements"]>700000 and m["atlas"]
 PY
 # Verify the full record and incidence round-trip before publishing.
 bulk="bulk/${release#corpus-mb-}"
 uv run --no-project --with orjson==3.11.4 scripts/static-index.py .cache/full/graph.json.gz "$src" --seed "$bulk/seed" --bulk "$bulk/shards" --stats "$bulk/stats.txt" --verify
 # Already compressed independent blocks; tar adds negligible overhead.
-tar -C "$src" -cf "$root/web-range-index.tar" .
-[[ $(stat -c %s "$root/web-range-index.tar") -lt $((950*1024*1024)) ]]
-(cd "$root"; sha256sum web-range-index.tar > web-range-index.sha256)
-python3 scripts/install-index.py "$root/web-range-index.tar" "$root/test-site/api/v1"
+tar -C "$src" -cf "$root/web-atlas-index.tar" .
+[[ $(stat -c %s "$root/web-atlas-index.tar") -lt $((950*1024*1024)) ]]
+(cd "$root"; sha256sum web-atlas-index.tar > web-atlas-index.sha256)
+python3 scripts/install-index.py "$root/web-atlas-index.tar" "$root/test-site/api/v1"
 node scripts/pages-test.js "$root/test-site"
-gh release upload "$release" "$root/web-range-index.tar" --clobber
-gh release upload "$release" "$root/web-range-index.sha256" --clobber
+cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,force-graph-3d.min.js,viewer.js} "$root/test-site/"
+sed -i 's/<head>/<head><meta name="static-graph" content="true">/' "$root/test-site/index.html"
+node scripts/browser-test.js "$root/test-site"
+gh release upload "$release" "$root/web-atlas-index.tar" --clobber
+gh release upload "$release" "$root/web-atlas-index.sha256" --clobber
 gh workflow run pages.yml --ref main

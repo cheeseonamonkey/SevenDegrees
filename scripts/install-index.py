@@ -25,6 +25,9 @@ else:
 m=json.loads((dest/"manifest.json").read_text())
 assert m["layout"]=="range-v1"
 prefix="data/"+version+"/"
+if m.get("search_layout")=="sorted-prefix-v1":
+    m["search_directory"]={k:prefix+v for k,v in m["search_directory"].items()}
+if "atlas" in m:m["atlas"]=prefix+m["atlas"]
 for key in ("artist_starts","search_directory"):
     name=key+".json.gz"
     if key in m:

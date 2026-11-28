@@ -23,7 +23,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           assets=$(gh release view corpus-mb-20261125-002239 --json assets --jq '.assets[].name')
-          if grep -qx web-range-index.tar <<< "$assets" && grep -qx web-range-index.sha256 <<< "$assets"; then
+          if grep -qx web-atlas-index.tar <<< "$assets" && grep -qx web-atlas-index.sha256 <<< "$assets"; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"

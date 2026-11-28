@@ -15,12 +15,11 @@ async function graphClient(manifestURL){
    Promise.resolve().then(t.fn).then(t.resolve,t.reject).finally(()=>{running--;pump()});
   }
  }
- function directory(name){
-  const d=manifest[name];
-  if(typeof d!=='string')return Promise.resolve(d);
-  if(!directories.has(name))directories.set(name,schedule(async()=>unzip(await (await read(url(d))).arrayBuffer())).catch(e=>{directories.delete(name);throw e}));
-  return directories.get(name);
+ function resource(path){
+  if(!directories.has(path))directories.set(path,schedule(async()=>unzip(await (await read(url(path))).arrayBuffer())).catch(e=>{directories.delete(path);throw e}));
+  return directories.get(path);
  }
+ function directory(name){const d=manifest[name];return typeof d==='string'?resource(d):Promise.resolve(d)}
  function index(section){
   if(!indexes.has(section)){
    const d=manifest.sections[section];
@@ -74,13 +73,16 @@ async function graphClient(manifestURL){
   const keys=ids.map(i=>Math.floor(i/n)),data=await blocks(section,keys);
   return ids.map((i,j)=>data[j][i%n]);
  }
- const graph=createGraph({manifest,blocks,rows,directory});
+ const graph=createGraph({manifest,blocks,rows,directory,resource});
  return async(path,params={},progress)=>{
   switch(path){
    case '/api/stats':return graph.stats();
+   case '/api/categories':return manifest.categories||null;
+   case '/api/atlas':return manifest.atlas?resource(manifest.atlas):null;
+   case '/api/profile':return graph.profile(params.artist,params.offset,params.year,progress,params.mask);
    case '/api/artists':return graph.search(params.q,progress);
-   case '/api/path':return graph.path(params.from,params.to,params.strict,progress);
-   case '/api/neighbors':return graph.neighbors(params.artist,params.strict,params.offset,progress);
+   case '/api/path':return graph.path(params.from,params.to,params.mask??params.strict,progress);
+   case '/api/neighbors':return graph.neighbors(params.artist,params.mask??params.strict,params.offset,progress);
    case '/api/evidence':return graph.evidence(params.artist,params.other,params.offset,progress);
    default:throw Error('Unknown graph operation');
   }

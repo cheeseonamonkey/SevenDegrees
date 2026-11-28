@@ -14,8 +14,8 @@ def download(name):
     with urllib.request.urlopen(request,timeout=120) as r,(output/name).open("wb") as f:
         while chunk:=r.read(1024*1024):f.write(chunk)
     return output/name
-expected=download("web-range-index.sha256").read_text().split()[0]
-path=download("web-range-index.tar")
+expected=download("web-atlas-index.sha256").read_text().split()[0]
+path=download("web-atlas-index.tar")
 with path.open("rb") as f:digest=hashlib.file_digest(f,"sha256").hexdigest()
 if digest!=expected:raise ValueError("static index checksum mismatch")
 print("verified",path.name,path.stat().st_size,flush=True)

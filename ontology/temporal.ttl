@@ -1,0 +1,27 @@
+@prefix sd: <https://github.com/cheeseonamonkey/SevenDegrees/blob/main/ontology/music.ttl#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+sd:Person a owl:Class ; rdfs:subClassOf sd:Artist, foaf:Person .
+sd:Group a owl:Class ; rdfs:subClassOf sd:Artist, foaf:Group .
+sd:Orchestra a owl:Class ; rdfs:subClassOf sd:Group .
+sd:Choir a owl:Class ; rdfs:subClassOf sd:Group .
+sd:Character a owl:Class ; rdfs:subClassOf sd:Artist .
+sd:ProfessionalRelationship a owl:Class ; rdfs:subClassOf prov:Entity .
+sd:MembershipAssertion a owl:Class ; rdfs:subClassOf sd:ProfessionalRelationship .
+sd:subjectArtist a owl:ObjectProperty ; rdfs:domain sd:ProfessionalRelationship ; rdfs:range sd:Artist .
+sd:objectArtist a owl:ObjectProperty ; rdfs:domain sd:ProfessionalRelationship ; rdfs:range sd:Artist .
+sd:relationshipKind a owl:DatatypeProperty ; rdfs:domain sd:ProfessionalRelationship .
+sd:ended a owl:DatatypeProperty ; rdfs:range xsd:boolean .
+sd:beginYear a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:beginMonth a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:beginDay a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:endYear a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:endMonth a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:endDay a owl:DatatypeProperty ; rdfs:range xsd:integer .
+sd:sourceID a owl:DatatypeProperty .
+sd:creditedName a owl:DatatypeProperty ; rdfs:domain sd:Participation .
+sd:position a owl:DatatypeProperty ; rdfs:domain sd:Participation ; rdfs:range xsd:nonNegativeInteger .
+sd:artistID a owl:DatatypeProperty ; rdfs:domain sd:Artist .

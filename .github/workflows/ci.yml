@@ -22,6 +22,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: scripts/pages.sh .cache/pages
       - run: node scripts/pages-test.js .cache/pages
+      - run: npm ci --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - run: node scripts/browser-test.js .cache/pages
       - run: go build -o degrees .
       - run: |
           ./degrees import corpus/*.jsonl

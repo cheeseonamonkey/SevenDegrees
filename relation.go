@@ -93,3 +93,22 @@ func strictEdge(kind string) bool {
 	}
 	return rules[kind].Strict
 }
+
+//go:embed ontology/categories.json
+var categoryJSON []byte
+var categoryBits = func() map[string]int {
+	var categories map[string]struct {
+		Bit   int
+		Kinds []string
+	}
+	if err := json.Unmarshal(categoryJSON, &categories); err != nil {
+		panic(err)
+	}
+	result := map[string]int{}
+	for _, c := range categories {
+		for _, k := range c.Kinds {
+			result[k] = c.Bit
+		}
+	}
+	return result
+}()

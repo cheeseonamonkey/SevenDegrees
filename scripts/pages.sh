@@ -20,8 +20,8 @@ else
  python3 scripts/install-index.py "$tmp/index" "$api"
 fi
 mkdir -p "$api/ontology"
-cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,cytoscape.LICENSE} "$output/"
+cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,cytoscape.LICENSE,force-graph-3d.min.js,force-graph-3d.LICENSE,viewer.js} "$output/"
 sed -i 's/<head>/<head><meta name="static-graph" content="true">/' "$output/index.html"
-cp ontology/relations.json "$api/"
+cp ontology/{relations,categories}.json "$api/"
 cp ontology/*.ttl "$api/ontology/"
 touch "$output/.nojekyll"

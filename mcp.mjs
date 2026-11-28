@@ -15,10 +15,12 @@ const call=async(path,params)=>{
 const server=new McpServer({name:'MusicAtlas',version:'0.1.0'});
 const artist=z.string().min(1).max(200);
 const strict=z.boolean().default(false);
+const mask=z.number().int().min(0).max(31).optional();
 const register=(name,description,inputSchema,path)=>server.registerTool(name,{description,inputSchema,annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}},args=>call(path,args));
 register('music_stats','Counts for the full indexed corpus.',{},'/api/stats');
 register('music_search','Find artist names and stable IDs.',{q:artist},'/api/artists');
-register('music_path','Find a source-backed connection path.',{from:artist,to:artist,strict},'/api/path');
-register('music_neighbors','Explore direct connections and their evidence, 40 at a time.',{artist,strict,offset:z.number().int().nonnegative().default(0)},'/api/neighbors');
+register('music_path','Find a source-backed connection path.',{from:artist,to:artist,strict,mask},'/api/path');
+register('music_neighbors','Explore direct connections and their evidence, 40 at a time.',{artist,strict,mask,offset:z.number().int().nonnegative().default(0)},'/api/neighbors');
 register('music_evidence','Read all original evidence for an artist or shared records for two artists, paginated.',{artist,other:artist.optional(),offset:z.number().int().nonnegative().default(0)},'/api/evidence');
+register('music_profile','Get typed artist profiles and date-qualified band memberships or other musical relationships.',{artist,offset:z.number().int().nonnegative().default(0),year:z.number().int().optional(),mask},'/api/profile');
 await server.connect(new StdioServerTransport());
