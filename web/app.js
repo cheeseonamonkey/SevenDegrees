@@ -49,7 +49,7 @@ function draw(fit=false,relayout=true){
  $('network').hidden=false;$('map-tools').hidden=false;$('export').disabled=false;
  viewer.mode(dimension);viewer.update(model,fit,relayout);
  $('map-count').textContent=model.nodes.size.toLocaleString()+' artists · '+model.links.size.toLocaleString()+' links';
- $('grow').hidden=!staticMode||[...model.nodes.values()].some(n=>n.community);
+ $('grow').hidden=!staticMode;$('shuffle').hidden=!staticMode||!rootID;
  $('settings-summary').textContent=rootID?'· '+model.links.size+' links':'';
  generationSummary();
 }
@@ -143,7 +143,6 @@ async function findPath(from,to,opt){
 function selectNode(id){
  const n=model.nodes.get(id);if(!n)return;selectedID=id;viewer.select(id);inspect();
  const panel=$('detail');panel.replaceChildren(el('strong',n.name));
- if(n.community){panel.append(el('small',n.size.toLocaleString()+' artists; representative names, not genres.'));for(const a of n.artists)panel.append(button(a.name,()=>searchArtist(a)));return}
  if(n.type||n.disambiguation)panel.append(el('small',[n.type,n.disambiguation].filter(x=>x&&x!=='Unknown').join(' · ')));
  const expand=button('Expand',()=>expandNode(id));expand.disabled=pages.get(id)===null;
  panel.append(document.createTextNode(' '),expand,listen(n.name));
@@ -191,7 +190,7 @@ function selectLink(id){
  const e=model.links.get(id);if(!e)return;selectedID=null;viewer.select(null);inspect();const a=model.nodes.get(e.source),b=model.nodes.get(e.target);
  $('detail').replaceChildren(el('p',e.description||connectionText(a,b,e)));
  if(e.url)$('detail').append(listen(...listeningTerms(a,b,e)));
- if(staticMode&&!a.community)$('detail').append(button('Evidence',()=>showEvidence(a.id,b.id)))
+ if(staticMode)$('detail').append(button('Evidence',()=>showEvidence(a.id,b.id)))
 }
 async function showEvidence(a,b,offset=0){
  const c=offset?inspection:inspect(),panel=$('records');if(!offset)panel.append(el('h2',b?'Shared evidence':'Evidence'));
@@ -292,17 +291,6 @@ $('layout-settings').onchange=layoutSettings;
 $('generation-settings').onchange=refreshGraph;
 $('shuffle').onclick=()=>{seed=(seed+1)>>>0;refreshGraph()};
 $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({nodes:[...model.nodes.values()],links:[...model.links.values()]},null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
-$('overview').onclick=async()=>{
- $('settings').open=false;setMode('explore');const opt=begin('Reading communities…');
- try{
-  const a=await api('/api/atlas',{},opt);if(opt.signal.aborted)return;
-  if(!a){finish(opt,'No community index in this snapshot.');return}
-  const nodes=a.nodes.slice(0,40),ids=new Set(nodes.map(n=>n.id));
-  for(const n of nodes)model.addNode({...n,community:true});
-  for(const [i,e] of a.links.filter(e=>ids.has(e.source)&&ids.has(e.target)).slice(0,90).entries())model.addLink({...e,id:'community:'+i,kind:'community'});
-  heading('Musical communities','Select a community to explore representative artists.');draw(true);finish(opt)
- }catch(e){finish(opt,e.message)}
-};
 function filters(categories){
  const choices=categories||relationshipTypes;
  for(const [key,c] of Object.entries(choices)){
@@ -312,7 +300,7 @@ function filters(categories){
  const count=()=>$('filter-count').textContent='('+document.querySelectorAll('#filter-options input:checked').length+'/'+Object.keys(choices).length+')';
  count();$('filter-options').onchange=()=>{count();if(model.nodes.size||$('submit').disabled){operation?.abort();clearMap();$('submit').disabled=false;$('grow').disabled=false;status('Relationships changed. Run the search again.')}}
 }
-filters(relationshipTypes);$('api-link').hidden=!staticMode;$('overview').hidden=!staticMode;$('generation-settings').hidden=!staticMode;
+filters(relationshipTypes);$('api-link').hidden=!staticMode;$('generation-settings').hidden=!staticMode;
 api('/api/stats').then(s=>$('stats').textContent=s.artist.toLocaleString()+' artists · '+s.fact.toLocaleString()+' evidence records').catch(e=>$('stats').textContent=e.message);
 setMode('explore',false);
 const initial=new URL(location.href).searchParams.get('artist');if(initial){$('from').value=initial;$('from').dataset.id=initial;submit()}

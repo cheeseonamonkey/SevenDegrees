@@ -29,7 +29,8 @@ prefix="data/"+version+"/"
 m["ranking"]=prefix+import_module("rank-index").build(dest,m)
 if m.get("search_layout")=="sorted-prefix-v1":
     m["search_directory"]={k:prefix+v for k,v in m["search_directory"].items()}
-if "atlas" in m:m["atlas"]=prefix+m["atlas"]
+old=m.pop("atlas",None)
+if old:(dest/old).unlink(missing_ok=True)
 for key in ("artist_starts","search_directory"):
     name=key+".json.gz"
     if key in m:

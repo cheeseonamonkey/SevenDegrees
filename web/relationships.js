@@ -82,7 +82,6 @@ function connectionText(a,b,e){
  case 'recording':return a.name+' and '+b.name+' are credited together on '+song;
  case 'performance':return a.name+' and '+b.name+' share a performance credit on '+song;
  case 'collaboration':return a.name+' collaborated with '+b.name;
- case 'community':return e.weight.toLocaleString()+' observed links between these communities';
  default:return a.name+' and '+b.name+' are linked by '+e.kind;
  }
 }

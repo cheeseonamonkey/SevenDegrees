@@ -11,7 +11,7 @@ m=json.load(open(sys.argv[1]))
 s={k:int(v) for k,v in (line.split(": ") for line in open(sys.argv[2]))}
 assert all(m["stats"][k]==v for k,v in s.items()), (m["stats"],s)
 assert m["layout"]=="range-v1" and m["edge_encoding"]=="category-v1"
-assert m["people_stats"]["musical_statements"]>700000 and m["atlas"]
+assert m["people_stats"]["musical_statements"]>700000 and m["search_layout"]=="sorted-prefix-v1"
 PY
 # Verify the full record and incidence round-trip before publishing.
 bulk="bulk/${release#corpus-mb-}"

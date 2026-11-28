@@ -1,8 +1,8 @@
 /* Both renderers consume the same map model. 2D is the default; 3D is optional. */
 const palette={Person:'#55c5b5',Group:'#e6b76e',Orchestra:'#e6b76e',Choir:'#e6b76e',Unknown:'#a8b2bf'};
-const nodeColor=n=>n.community?'#8aace8':palette[n.type]||'#b8a0eb';
+const nodeColor=n=>palette[n.type]||'#b8a0eb';
 const edgeColor=e=>category(e.kind)?.color||'#637588';
-const size=(n,s)=>s.nodeSize*(n.community?Math.min(10,4+Math.log1p(n.size)*.35):Math.min(14,4+Math.sqrt(n.degree||0)*s.degreeSize));
+const size=(n,s)=>s.nodeSize*Math.min(14,4+Math.sqrt(n.degree||0)*s.degreeSize);
 function layoutData(model,settings){
  const nodes=[...model.nodes.values()].sort((a,b)=>a.id.localeCompare(b.id)).map(n=>({...n,degree:0,group:0}));
  const ids=new Map(nodes.map(n=>[n.id,n])),votes=new Map(nodes.map(n=>[n.id,new Map()]));
@@ -27,7 +27,7 @@ function layoutData(model,settings){
  return {nodes,links};
 }
 function labelSprite(n,s){
- const t=new SpriteText(s.labels&&(!n.community||n.degree>=5)?n.name:'');t.color='#eee';t.textHeight=s.labelSize*Math.min(6,Math.max(2.5,size(n,s)*.65));t.strokeWidth=.5;t.strokeColor='#181818';t.material.depthTest=false;t.material.depthWrite=false;t.material.transparent=true;t.renderOrder=100;return t
+ const t=new SpriteText(s.labels?n.name:'');t.color='#eee';t.textHeight=s.labelSize*Math.min(6,Math.max(2.5,size(n,s)*.65));t.strokeWidth=.5;t.strokeColor='#181818';t.material.depthTest=false;t.material.depthWrite=false;t.material.transparent=true;t.renderOrder=100;return t
 }
 const safeLabel=value=>{const el=document.createElement('span');el.textContent=value;return el};
 class MapViewer {
@@ -51,8 +51,8 @@ class MapViewer {
     this.three=new ForceGraph3D(this.el,{controlType:'orbit',rendererConfig:{antialias:true}})
      .backgroundColor('#181818').showNavInfo(false).nodeId('id').nodeLabel(n=>safeLabel(n.name))
      .nodeColor(n=>n.id===this.selected?'#d9c4ff':nodeColor(n)).nodeVal(n=>Math.pow(size(n,this.settings)/4,3)).nodeThreeObjectExtend(true).nodeThreeObject(n=>labelSprite(n,this.settings))
-     .nodeResolution(8).nodeOpacity(1).linkColor(edgeColor).linkOpacity(.92).linkWidth(e=>e.weight?Math.min(3,Math.log10(e.weight+1)/2):.35)
-     .linkLabel(e=>safeLabel(e.weight?e.weight.toLocaleString()+' links':e.title||e.kind))
+     .nodeResolution(8).nodeOpacity(1).linkColor(edgeColor).linkOpacity(.92).linkWidth(e=>.35)
+     .linkLabel(e=>safeLabel(e.title||e.kind))
      .onNodeClick(n=>this.onNode(n.id)).onLinkClick(e=>this.onLink(e.id)).enableNodeDrag(true)
      .cooldownTicks(100).onEngineStop(()=>{if(this.fitPending){this.fitPending=false;this.fit()}});
     this.measure();

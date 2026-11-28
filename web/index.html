@@ -33,7 +33,7 @@
 <label>Max per artist <input id="max-branch" type="number" min="1" max="250" value="16"></label>
 <label>Links per growth <input id="max-connections" type="number" min="0" max="1000" value="100"></label>
 <label>Variation <input id="variation" type="range" min="0" max="1" step="0.01" value="0.12"></label>
-<button id="shuffle" type="button" disabled>Shuffle</button> <small id="generation-summary" aria-live="polite"></small>
+<small id="generation-summary" aria-live="polite"></small>
 <label><input id="cross-links" type="checkbox"> Connect artists already on map</label>
 </div>
 <small class="settings-note">Generation changes rebuild the map. Appearance changes keep it intact.</small>
@@ -46,7 +46,7 @@
 <label>Label size <input id="label-size" type="range" min="0.5" max="1.5" step="0.1" value="1"></label>
 <label><input id="labels" type="checkbox" checked> Labels</label>
 </div>
-<p><button id="overview" type="button">Community overview</button> <button id="export" type="button" disabled>Export JSON</button></p>
+
 </details>
 <div class="actions"><button id="submit" type="submit">Explore</button></div>
 </form>
@@ -54,7 +54,7 @@
 <div id="status" role="status" aria-live="polite"></div>
 <div id="map-tools" hidden>
 <div id="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="true">2D</button><button type="button" data-dimension="3D" aria-pressed="false">3D</button></div>
-<button id="fit" type="button">Fit</button><button id="grow" type="button" hidden>Grow map</button><small id="map-count"></small>
+<button id="fit" type="button">Fit</button><button id="grow" type="button" hidden>Grow map</button><button id="shuffle" type="button" disabled hidden>Shuffle</button><button id="export" type="button" disabled>Export</button><small id="map-count"></small>
 </div>
 <section id="detail" aria-live="polite"></section>
 <div id="network" hidden aria-label="Interactive graph"></div>

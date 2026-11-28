@@ -143,13 +143,9 @@ round-trips every fact against the canonical release and verifies incidence.
 The client coalesces close ranges, deduplicates in-flight requests, uses eight
 concurrent reads and an 8 MiB compressed-weight LRU cache. Bidirectional BFS
 reads topology first and retrieves artist names/evidence only for its result.
-The vanilla JS worker keeps the interface responsive. The full-window atlas
-uses Cytoscape.js by default, with on-demand 3D Force Graph (Three.js). The
-optional global view displays 40 large Leiden communities and up to 90 links (not genre classifications);
-all connected artists remain searchable. Local maps retain expansion state,
+The vanilla JS worker keeps the interface responsive. The graph explorer uses Cytoscape.js by default, with on-demand 3D Force Graph (Three.js). All connected artists remain searchable. Local maps retain expansion state,
 grow incrementally without a fixed cumulative cap, and export to JSON. Five independent
-category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance. The overview
-is an unfiltered aggregate of the original graph.
+category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance.
 
 This is a read-only static file API, not a server accepting arbitrary SPARQL
 or dynamic RPC requests. The shared graph client provides logical search,
@@ -280,9 +276,9 @@ MusicBrainz tables or all music sources.
 # Existing verified dump; recover typed entities and date-qualified relationships.
 uv run --no-project --with orjson==3.11.4 scripts/people.py extract .cache/people \
   --archive "$bulk/mbdump.tar.bz2" --stage "$bulk/stage.sqlite"
-# Build the sorted search index and aggregated community map.
-uv run --no-project --with orjson==3.11.4 --with igraph==1.0.0 --with numpy==2.5.5 \
-  scripts/atlas.py .cache/full/graph.json.gz .cache/range/atlas --seed "$bulk/seed"
+# Build the sorted artist-name search index.
+uv run --no-project --with orjson==3.11.4 \
+  scripts/search-index.py .cache/full/graph.json.gz .cache/range/atlas --seed "$bulk/seed"
 uv run --no-project --with orjson==3.11.4 scripts/people.py pack .cache/people --index .cache/range/atlas
 ./degrees -db "$bulk/graph.sqlite" export-static | gzip -n -5 > .cache/full/categories.json.gz
 uv run --no-project --with orjson==3.11.4 scripts/topology.py .cache/full/categories.json.gz .cache/range/atlas

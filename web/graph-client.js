@@ -93,7 +93,6 @@ async function graphClient(manifestURL){
   switch(path){
    case '/api/stats':return graph.stats();
    case '/api/categories':return manifest.categories||null;
-   case '/api/atlas':return manifest.atlas?resource(manifest.atlas):null;
    case '/api/profile':return graph.profile(params.artist,params.offset,params.year,progress,relationshipMask(params));
    case '/api/artists':return graph.search(params.q,progress,params.expand);
    case '/api/path':return graph.path(params.from,params.to,relationshipMask(params),progress,params.limit??1);
