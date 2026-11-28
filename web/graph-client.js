@@ -79,13 +79,14 @@ async function graphClient(manifestURL){
    case '/api/stats':return graph.stats();
    case '/api/categories':return manifest.categories||null;
    case '/api/atlas':return manifest.atlas?resource(manifest.atlas):null;
-   case '/api/profile':return graph.profile(params.artist,params.offset,params.year,progress,params.mask);
+   case '/api/profile':return graph.profile(params.artist,params.offset,params.year,progress,relationshipMask(params));
    case '/api/artists':return graph.search(params.q,progress);
-   case '/api/path':return graph.path(params.from,params.to,params.mask??params.strict,progress);
-   case '/api/neighbors':return graph.neighbors(params.artist,params.mask??params.strict,params.offset,progress);
+   case '/api/path':return graph.path(params.from,params.to,relationshipMask(params),progress);
+   case '/api/neighbors':return graph.neighbors(params.artist,relationshipMask(params),params.offset,progress);
+   case '/api/map-links':return graph.mapLinks(params.artists,relationshipMask(params),progress);
    case '/api/evidence':return graph.evidence(params.artist,params.other,params.offset,progress);
    default:throw Error('Unknown graph operation');
   }
  };
 }
-if(typeof module!=='undefined'){globalThis.createGraph=require('./graph.js').createGraph;module.exports={graphClient}}
+if(typeof module!=='undefined'){globalThis.createGraph=require('./graph.js').createGraph;Object.assign(globalThis,require('./relationships.js'));module.exports={graphClient}}

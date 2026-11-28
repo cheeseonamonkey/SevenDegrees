@@ -1,7 +1,59 @@
 {
-  "collaborations":{"bit":1,"label":"Collaborations","kinds":["recording","performance","featured","collaboration"]},
-  "memberships":{"bit":2,"label":"Memberships","kinds":["membership","member of band","founder","subgroup"]},
-  "production":{"bit":4,"label":"Production","kinds":["production"]},
-  "covers":{"bit":8,"label":"Covers & tributes","kinds":["cover","cover-reference","tribute"]},
-  "professional":{"bit":16,"label":"Other musical roles","kinds":["is person","artist rename","teacher","conductor position","artistic director","supporting musician","instrumental supporting musician","vocal supporting musician","artist-in-residence","composer-in-residence"]}
+  "collaborations": {
+    "bit": 1,
+    "label": "Collaborations",
+    "kinds": [
+      "recording",
+      "performance",
+      "featured",
+      "collaboration"
+    ],
+    "color": "#63b9ef"
+  },
+  "memberships": {
+    "bit": 2,
+    "label": "Memberships",
+    "kinds": [
+      "membership",
+      "member of band",
+      "founder",
+      "subgroup"
+    ],
+    "color": "#e7b966"
+  },
+  "production": {
+    "bit": 4,
+    "label": "Production",
+    "kinds": [
+      "production"
+    ],
+    "color": "#61d1a4"
+  },
+  "covers": {
+    "bit": 8,
+    "label": "Covers & tributes",
+    "kinds": [
+      "cover",
+      "cover-reference",
+      "tribute"
+    ],
+    "color": "#c4a0f5"
+  },
+  "professional": {
+    "bit": 16,
+    "label": "Other musical roles",
+    "kinds": [
+      "is person",
+      "artist rename",
+      "teacher",
+      "conductor position",
+      "artistic director",
+      "supporting musician",
+      "instrumental supporting musician",
+      "vocal supporting musician",
+      "artist-in-residence",
+      "composer-in-residence"
+    ],
+    "color": "#ed9690"
+  }
 }

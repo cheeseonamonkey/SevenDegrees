@@ -12,6 +12,7 @@ jobs:
       - run: go vet ./...
       - run: python3 scripts/bulk_test.py
       - run: python3 scripts/schema.py --check
+      - run: python3 scripts/relationship-schema.py --check
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'

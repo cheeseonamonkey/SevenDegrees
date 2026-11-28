@@ -8,7 +8,7 @@ trap 'rm -rf "$tmp"' EXIT
 api="$output/api/v1"
 if [[ -n "$release" ]]; then
  python3 scripts/pages-release.py "$release" "$tmp"
- python3 scripts/install-index.py "$tmp/web-range-index.tar" "$api"
+ python3 scripts/install-index.py "$tmp/web-atlas-index.tar" "$api"
 else
  go build -o "$tmp/degrees" .
  db="$tmp/seed.sqlite"
@@ -20,7 +20,7 @@ else
  python3 scripts/install-index.py "$tmp/index" "$api"
 fi
 mkdir -p "$api/ontology"
-cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,cytoscape.LICENSE,force-graph-3d.min.js,force-graph-3d.LICENSE,viewer.js} "$output/"
+cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,cytoscape.LICENSE,force-graph-3d.min.js,force-graph-3d.min.js.LEGAL.txt,force-graph-3d.LICENSE,viewer.js,relationships.js} "$output/"
 sed -i 's/<head>/<head><meta name="static-graph" content="true">/' "$output/index.html"
 cp ontology/{relations,categories}.json "$api/"
 cp ontology/*.ttl "$api/ontology/"

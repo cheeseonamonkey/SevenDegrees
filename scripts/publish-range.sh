@@ -22,7 +22,7 @@ tar -C "$src" -cf "$root/web-atlas-index.tar" .
 (cd "$root"; sha256sum web-atlas-index.tar > web-atlas-index.sha256)
 python3 scripts/install-index.py "$root/web-atlas-index.tar" "$root/test-site/api/v1"
 node scripts/pages-test.js "$root/test-site"
-cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,force-graph-3d.min.js,viewer.js} "$root/test-site/"
+cp web/{index.html,style.css,app.js,graph.js,graph-client.js,graph-worker.js,cytoscape.min.js,force-graph-3d.min.js,force-graph-3d.min.js.LEGAL.txt,viewer.js,relationships.js} "$root/test-site/"
 sed -i 's/<head>/<head><meta name="static-graph" content="true">/' "$root/test-site/index.html"
 node scripts/browser-test.js "$root/test-site"
 gh release upload "$release" "$root/web-atlas-index.tar" --clobber

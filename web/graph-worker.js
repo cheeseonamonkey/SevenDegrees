@@ -1,4 +1,4 @@
-importScripts('graph.js','graph-client.js');
+importScripts('relationships.js','graph.js','graph-client.js');
 let client;
 const active=new Map();
 self.onmessage=async ({data:{id,path,params,cancel}})=>{

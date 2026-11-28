@@ -23,13 +23,22 @@ const {server,metrics}=require('./test-server')(process.argv[2]);
   if(stats.artist===773)assert.equal(original.degrees,3);
   const cover=await query('/api/path',{from:'The Wiggles',to:'Tame Impala'});
   assert.equal(cover.degrees,1);
+  assert.ok(cover.steps[0].description.includes('Elephant'));
+  const covered=await query('/api/path',{from:'The Wiggles',to:'Tame Impala',collaborations:false,memberships:false,production:false,covers:true,professional:false});
+  assert.equal(covered.degrees,1);
+  assert.ok(covered.steps[0].description.includes('covered'));
+  const blocked=await query('/api/path',{from:'The Wiggles',to:'Tame Impala',collaborations:false,memberships:false,production:false,covers:false,professional:false});
+  assert.equal(blocked.found,false);
+  const induced=await query('/api/map-links',{artists:[cover.start.id,cover.steps[0].to.id],mask:8});
+  assert.ok(induced.some(e=>['cover','cover-reference'].includes(e.kind)));
+  assert.equal((await query('/api/map-links',{artists:[cover.start.id,cover.steps[0].to.id],mask:0})).length,0);
   const categories=await query('/api/categories');
   if(categories){
    assert.equal(Object.keys(categories).length,5);
    const empty=await query('/api/neighbors',{artist:found[0].id,mask:0});assert.equal(empty.total,0);
    const onlyCovers=await query('/api/neighbors',{artist:'The Wiggles',mask:8});
    assert.ok(onlyCovers.steps.every(s=>categories.covers.kinds.includes(s.kind)));
-   const members=await query('/api/neighbors',{artist:'The Beatles',mask:2});
+   const members=await query('/api/neighbors',{artist:'b10bbbfc-cf9e-42e0-be17-e2c3e1d2600d',mask:2});
    assert.ok(members.steps.some(s=>s.to.name==='John Lennon'));
    assert.ok(members.steps.every(s=>categories.memberships.kinds.includes(s.kind)));
   }

@@ -144,6 +144,13 @@ func resolve(db *sql.DB, name string) (string, error) {
 }
 
 func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
+	mask := 31
+	if strict {
+		mask &^= 8
+	}
+	return neighborsAllowed(db, id, mask)
+}
+func neighborsAllowed(db *sql.DB, id string, mask int) ([]Step, error) {
 	rows, e := db.Query(`
  SELECT a.artist,b.artist,f.kind,f.title,f.source,a.role,b.role
  FROM participant a JOIN participant b ON a.fact=b.fact AND a.artist<>b.artist
@@ -161,8 +168,8 @@ func neighbors(db *sql.DB, id string, strict bool) ([]Step, error) {
 		if e = rows.Scan(&s.From, &s.To, &s.Kind, &s.Title, &s.Source, &a, &b); e != nil {
 			return nil, e
 		}
-		kind, ok := classify(s.Kind, a, b, strict)
-		if !ok {
+		kind, ok := classify(s.Kind, a, b, false)
+		if !ok || categoryBits[kind]&mask == 0 {
 			continue
 		}
 		s.Kind = kind

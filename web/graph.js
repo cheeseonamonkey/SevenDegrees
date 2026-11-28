@@ -76,9 +76,56 @@ function createGraph(store){
   const [a,steps]=await Promise.all([artist(root),hydrate(pairs)]);
   return {root:a,total:seen.size,steps,next:offset+steps.length<seen.size?offset+steps.length:null};
  }
+ async function describePath(start,steps,progress){
+  let from=start;
+  for(const step of steps){
+   if(['cover','cover-reference','production','featured'].includes(step.kind)){
+    // Match the original witness, or prefer an explicit cover assertion for
+    // the same title over an inferred reference version. Preserve its source.
+    let best;
+    for(let offset=0;offset<100;){
+     progress({message:'Reading connection details'});
+     const page=await evidence(from.id,step.to.id,offset,progress);
+     for(const f of page.records){
+      const roles=Object.fromEntries(['performer','producer','featured','original','reference'].map(role=>{
+       const ids=[...new Set(f.participants.filter(p=>p.role===role&&[from.id,step.to.id].includes(p.id)).map(p=>p.id))];
+       return [role,ids.length===1?ids[0]:undefined];
+      }));
+      const explicit=f.kind==='cover'&&roles.performer&&roles.original&&roles.performer!==roles.original&&f.title===step.title;
+      const matches=f.source===step.source&&f.title===step.title&&(f.kind===step.kind||(['production','featured'].includes(step.kind)&&['recording','performance'].includes(f.kind)));
+      if((step.kind==='cover'||step.kind==='cover-reference')&&explicit){best={...roles,kind:f.kind,source:f.source};break}
+      if(matches&&!best)best=roles;
+     }
+     if(best&&(step.kind!=='cover-reference'||best.kind==='cover'))break;
+     if(page.next===null)break;offset=page.next;
+    }
+    if(best)Object.assign(step,best);
+   }
+   step.description=connectionText(from,step.to,step);
+   from=step.to;
+  }
+  return steps;
+ }
+ async function mapLinks(names,filter,progress){
+  if(!Array.isArray(names)||names.length>500)throw Error('Map limit is 500 artists');
+  const ids=await Promise.all(names.map(name=>resolve(name,progress))),chosen=new Set(ids),pairs=[];
+  const size=manifest.sections.topology.block_size,groups=new Map();
+  for(const id of chosen){const key=Math.floor(id/size);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(id)}
+  const keys=[...groups.keys()];
+  for(let i=0;i<keys.length;i+=16){
+   const batch=keys.slice(i,i+16),data=await blocks('topology',batch);
+   progress?.({message:'Connecting mapped artists',visited:i});
+   for(let j=0;j<batch.length;j++)for(const from of groups.get(batch[j])){
+    const row=data[j][from%size];
+    for(let k=0;k<row.length;k+=2){const to=row[k],w=row[k+1];if(to>from&&chosen.has(to)&&allowed(w,filter))pairs.push([from,to,w])}
+   }
+  }
+  const steps=await hydrate(pairs.map(([,to,w])=>[to,w])),people=await artists(pairs.map(([from])=>from));
+  return pairs.map((_,i)=>({from:people[i],...steps[i]}));
+ }
  async function path(from,to,strict=false,progress=()=>{}){
   const [start,end]=await Promise.all([resolve(from,progress),resolve(to,progress)]);
-  const result=async(found,pairs)=>({found,start:await artist(start),steps:await hydrate(pairs),degrees:pairs.length});
+  const result=async(found,pairs)=>{const root=await artist(start),steps=await describePath(root,await hydrate(pairs),progress);return {found,start:root,steps,degrees:pairs.length}};
   if(start===end)return result(true,[]);
   const front=i=>({nodes:[i],prev:new Map([[i,{from:i,depth:0}]]),depth:0});
   const left=front(start),right=front(end);
@@ -149,6 +196,6 @@ function createGraph(store){
   const page=records.slice(offset,offset+40),others=await artists(page.map(r=>r[0]));
   return {root,total:records.length,available:true,next:offset+page.length<records.length?offset+page.length:null,records:page.map((r,i)=>({other:others[i],direction:r[1],id:r[2],kind:r[3],begin:r[4],end:r[5],ended:r[6],attributes:r[7],source:r[8]}))};
  }
- return {search,resolve,neighbors,path,evidence,profile,stats:()=>manifest.stats};
+ return {search,resolve,neighbors,path,evidence,profile,mapLinks,stats:()=>manifest.stats};
 }
 if(typeof module!=='undefined')module.exports={createGraph};

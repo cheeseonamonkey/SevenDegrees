@@ -2,6 +2,7 @@ const $=id=>document.getElementById(id);
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 const button=(text,action,cls)=>{const b=el('button',text,cls);b.type='button';b.onclick=action;return b};
 const link=(source,text='Source')=>{const a=el('a',text);try{const u=new URL(source);if(u.protocol==='https:'){a.href=u.href;a.target='_blank';a.rel='noopener noreferrer'}}catch{}return a};
+const listen=(...terms)=>link(spotifySearch(...terms),'Spotify ↗');
 const spinner=text=>{const n=el('span',undefined,'loading');n.append(el('span',undefined,'spinner'),el('span',text));return n};
 const staticMode=!!document.querySelector('meta[name="static-graph"]');
 const worker=staticMode?new Worker('graph-worker.js'):null,pending=new Map();let requestID=0;
@@ -26,8 +27,7 @@ viewer.mode(dimension);
 function syncDimension(){for(const b of $('dimension').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.dimension===dimension))}
 syncDimension();
 const MAX_NODES=matchMedia('(max-width:760px)').matches?240:500;
-const mask=()=>Array.from(document.querySelectorAll('#filter-options input:checked')).reduce((m,e)=>m|Number(e.value),0);
-const policy=()=>staticMode?{mask:mask()}:{strict:!(mask()&8)};
+const policy=()=>Object.fromEntries(Array.from(document.querySelectorAll('#filter-options input'),e=>[e.name,e.checked]));
 function status(text='',busy=false){$('status').replaceChildren(...(text?[busy?spinner(text):el('span',text)]:[]))}
 function begin(text){
  operation?.abort();operation=new AbortController();const signal=operation.signal;
@@ -45,7 +45,7 @@ function heading(name,description){
 function actions(...buttons){const n=el('div',undefined,'buttons');n.append(...buttons);$('detail').append(n)}
 function update(reset=false){
  viewer.update(model,reset);$('map-count').textContent=view==='atlas'?model.nodes.size+' communities':model.nodes.size+' artists · '+model.links.size+' links';
- $('legend').hidden=view==='atlas';
+ $('legend').hidden=view==='atlas';$('edge-legend').hidden=view==='atlas';$('connect-map').disabled=view==='atlas'||!staticMode;
 }
 function reset(next){model.clear();pages.clear();selected=null;view=next;inspect()}
 function addNeighborhood(p){
@@ -82,9 +82,16 @@ async function findPath(from,to){
   reset('local');lastQuery={from,to};
   if(!p.found){update(true);heading('No path found','No connection within the search limit.');finish(opt);return}
   model.addNode(p.start);let previous=p.start.id;for(const s of p.steps){model.addConnection(previous,s);previous=s.to.id}update(true);
-  heading('Connection path','Select any artist or link for more detail.');
+  heading('Connection path',p.degrees+' '+(p.degrees===1?'degree':'degrees')+' of separation · '+(p.degrees+1)+' artists');
   $('detail').append(button(p.start.name,()=>selectNode(p.start.id),'list-button'));
-  for(const s of p.steps){const n=el('div',undefined,'path-item');n.append(el('small',s.kind+' · '+s.title),button(s.to.name,()=>selectNode(s.to.id)),link(s.source));$('detail').append(n)}
+  let from=p.start;
+  for(const [i,s] of p.steps.entries()){
+   const sourceArtist=from;const n=el('div',undefined,'path-item'),description=el('p',s.description||connectionText(from,s.to,s));
+   description.style.borderLeftColor=category(s.kind)?.color||'#637588';
+   n.append(el('small','Link '+(i+1)),description,button(s.to.name,()=>selectNode(s.to.id),'list-button'),listen(...listeningTerms(from,s.to,s)));
+   if(staticMode)n.append(document.createTextNode(' · '),button('Evidence',()=>showEvidence(sourceArtist.id,s.to.id),'small-button'));
+   $('detail').append(n);from=s.to
+  }
   finish(opt);
  }catch(e){finish(opt,e.message)}
 }
@@ -102,7 +109,7 @@ function selectNode(id){
  const expand=button(pages.get(id)===null?'Connections loaded':pages.has(id)?'More connections':'Expand',()=>expandNode(id));
  expand.disabled=pages.get(id)===null||model.nodes.size>=MAX_NODES;
  actions(expand,button('Focus',()=>viewer.focus(id)),...(staticMode?[button('Evidence',()=>showEvidence(id)),button('Timeline',()=>showTimeline(id))]:[]));
- $('detail').append(link('https://musicbrainz.org/artist/'+encodeURIComponent(id),'MusicBrainz ↗'));
+ $('detail').append(listen(n.name));
  const adjacent=[...model.links.values()].filter(e=>e.source===id||e.target===id);
  if(adjacent.length){const list=el('details');list.append(el('summary','Mapped connections ('+adjacent.length+')'));for(const e of adjacent){const a=model.nodes.get(e.source===id?e.target:e.source);list.append(button(a.name+' · '+e.kind,()=>selectNode(a.id),'list-button'))}$('detail').append(list)}
  if(staticMode)showTimeline(id,0,'',controller);
@@ -117,8 +124,8 @@ async function expandNode(id){
 function selectLink(id){
  const e=model.links.get(id);if(!e)return;inspect();selected=null;
  const a=model.nodes.get(e.source),b=model.nodes.get(e.target);
- heading(a.name+' ↔ '+b.name,e.kind==='community'?e.weight.toLocaleString()+' observed cross-community links':e.kind+' · '+e.title);
- if(e.url)$('detail').append(link(e.url));
+ heading(a.name+' ↔ '+b.name,e.description||connectionText(a,b,e));
+ if(e.url)$('detail').append(listen(...listeningTerms(a,b,e)));
  if(view==='local')actions(...(staticMode?[button('Shared evidence',()=>showEvidence(a.id,b.id))]:[]),button(a.name,()=>selectNode(a.id)),button(b.name,()=>selectNode(b.id)));
 }
 async function showEvidence(a,b,offset=0){
@@ -127,7 +134,7 @@ async function showEvidence(a,b,offset=0){
  try{
   const p=await api('/api/evidence',{artist:a,...(b?{other:b}:{}),offset},{signal:c.signal});if(c.signal.aborted)return;loading.remove();
   if(!offset)panel.append(el('p',p.total.toLocaleString()+' source records'));
-  for(const f of p.records){const n=el('article',undefined,'record');n.append(el('strong',f.title),el('p',f.kind+' · '+f.participants.map(x=>x.name+' ('+x.role+')').join('; ')),link(f.source));panel.append(n)}
+  for(const f of p.records){const n=el('article',undefined,'record');n.append(el('strong',f.title),el('p',f.kind+' · '+f.participants.map(x=>x.name+' ('+x.role+')').join('; ')),listen(f.title,f.participants.find(p=>p.role==='performer')?.name),document.createTextNode(' · '),link(f.source,'Source record'));panel.append(n)}
   if(p.next!==null){const more=button('More records',()=>{more.remove();showEvidence(a,b,p.next)});panel.append(more)}
  }catch(e){if(!c.signal.aborted)loading.replaceWith(el('p',e.message))}
 }
@@ -139,7 +146,7 @@ async function showTimeline(id,offset=0,year='',provided){
   if(p.root.type&&selected===id){const text=$('detail').querySelector('p');if(text)text.textContent=[p.root.type,p.root.disambiguation].filter(Boolean).join(' · ');model.addNode(p.root)}
   if(!p.available){panel.append(el('p','Typed membership data is not included in this snapshot.'));return}
   if(!offset)panel.append(el('p',p.total.toLocaleString()+' professional relationships. Unknown dates remain unknown; year filtering excludes only known non-overlapping dates.'));
-  for(const r of p.records){const n=el('article',undefined,'record');n.append(button(r.other.name,()=>{if(!model.nodes.has(r.other.id)&&model.nodes.size>=MAX_NODES){openArtist(r.other.id);return}model.addNode(r.other);model.addLink({id:r.id,source:r.direction==='out'?id:r.other.id,target:r.direction==='out'?r.other.id:id,kind:r.kind==='member of band'?'membership':r.kind,title:period(r),url:r.source});update();selectNode(r.other.id)},'list-button'),el('p',r.kind+' · '+(r.direction==='out'?'Outgoing':'Incoming')+' · '+period(r)+(r.attributes.length?' · '+r.attributes.join(', '):'')),link(r.source));panel.append(n)}
+  for(const r of p.records){const n=el('article',undefined,'record');n.append(button(r.other.name,()=>{if(!model.nodes.has(r.other.id)&&model.nodes.size>=MAX_NODES){openArtist(r.other.id);return}model.addNode(r.other);model.addLink({id:r.id,source:r.direction==='out'?id:r.other.id,target:r.direction==='out'?r.other.id:id,kind:r.kind==='member of band'?'membership':r.kind,title:period(r),url:r.source});update();selectNode(r.other.id)},'list-button'),el('p',r.kind+' · '+(r.direction==='out'?'Outgoing':'Incoming')+' · '+period(r)+(r.attributes.length?' · '+r.attributes.join(', '):'')),listen(r.other.name),document.createTextNode(' · '),link(r.source,'Source record'));panel.append(n)}
   if(p.next!==null){const more=button('More relationships',()=>{more.remove();showTimeline(id,p.next,year)});panel.append(more)}
  }catch(e){if(!c.signal.aborted)loading.replaceWith(el('p',e.message))}
 }
@@ -158,15 +165,33 @@ $('mode').onclick=()=>{mode=mode==='path'?'explore':'path';$('mode').setAttribut
 $('overview').onclick=()=>{const u=new URL(location.href);u.searchParams.delete('artist');history.replaceState(null,'',u);overview()};
 $('dimension').onclick=e=>{const next=e.target.closest('button')?.dataset.dimension;if(!next||next===dimension)return;dimension=next;viewer.mode(dimension);syncDimension();update(true)};
 $('fit').onclick=()=>viewer.fit();
+$('layout-button').onclick=()=>{const panel=$('layout-panel');panel.hidden=!panel.hidden;$('layout-button').setAttribute('aria-expanded',String(!panel.hidden))};
+function layoutSettings(){viewer.settings={cluster:$('layout-mode').value==='cluster',spacing:Number($('spacing').value),labels:$('labels').checked};viewer.update(model,false)}
+for(const id of ['layout-mode','spacing','labels'])$(id).onchange=layoutSettings;
+$('relayout').onclick=()=>viewer.update(model,true);
+$('connect-map').onclick=async()=>{
+ if(!staticMode||view!=='local')return;
+ const opt=begin('Connecting map…');
+ try{
+  const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],...policy()},opt);
+  if(opt.signal.aborted)return;for(const e of edges.slice(0,2000))model.addConnection(e.from.id,e);
+  update();finish(opt,edges.length.toLocaleString()+' relationships within this map'+(edges.length>2000?' · display capped at 2,000':''));
+ }catch(e){finish(opt,e.message)}
+};
+
 $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({nodes:[...model.nodes.values()],links:[...model.links.values()]},null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=u;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 async function filters(){
- const categories=staticMode?await api('/api/categories'):null;
+ const categories=await api('/api/categories');
  const choices=categories||{covers:{bit:8,label:'Covers & tributes'}};
- for(const {bit,label} of Object.values(choices)){
-  const row=el('label'),input=el('input');input.type='checkbox';input.checked=true;input.value=bit;row.append(input,document.createTextNode(' '+label));$('filter-options').append(row);
+ for(const [key,{bit,label}] of Object.entries(choices)){
+  const row=el('label'),input=el('input');input.type='checkbox';input.checked=true;input.value=bit;input.name=key;const dot=el('i');dot.style.background=relationshipTypes[key]?.color||'#888';row.append(input,dot,document.createTextNode(' '+label));$('filter-options').append(row);
  }
  const count=()=>$('filter-count').textContent=document.querySelectorAll('#filter-options input:checked').length+'/'+Object.keys(choices).length;
- count();$('filter-options').onchange=()=>{count();if(lastQuery?.artist)openArtist(lastQuery.artist);else if(lastQuery?.from)findPath(lastQuery.from,lastQuery.to)};
+ const changed=()=>{count();if(lastQuery?.artist)openArtist(lastQuery.artist);else if(lastQuery?.from)findPath(lastQuery.from,lastQuery.to)};
+ $('edge-legend').replaceChildren(...Object.entries(choices).map(([key,c])=>{const label=el('span');const swatch=el('i');swatch.style.background=relationshipTypes[key]?.color||'#888';label.append(swatch,document.createTextNode(c.label));return label}));
+ count();$('filter-options').onchange=changed;
+ for(const [id,value] of [['all-types',true],['no-types',false]])$(id).onclick=()=>{for(const box of $('filter-options').querySelectorAll('input'))box.checked=value;changed()};
+
 }
 
 $('api-link').hidden=!staticMode;

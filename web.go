@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -24,6 +25,38 @@ type webStep struct {
 	Kind   string    `json:"kind"`
 	Title  string    `json:"title"`
 	Source string    `json:"source"`
+}
+
+func queryMask(q url.Values) (int, error) {
+	mask := 31
+	if q.Get("strict") == "true" {
+		mask &^= 8
+	}
+	if raw := q.Get("mask"); raw != "" {
+		v, e := strconv.Atoi(raw)
+		if e != nil || v < 0 || v > 31 {
+			return 0, fmt.Errorf("invalid mask")
+		}
+		mask = v
+	}
+	var categories map[string]struct{ Bit int }
+	if err := json.Unmarshal(categoryJSON, &categories); err != nil {
+		return 0, err
+	}
+	for key, c := range categories {
+		if !q.Has(key) {
+			continue
+		}
+		switch q.Get(key) {
+		case "true":
+			mask |= c.Bit
+		case "false":
+			mask &^= c.Bit
+		default:
+			return 0, fmt.Errorf("%s must be true or false", key)
+		}
+	}
+	return mask, nil
 }
 
 func webAPI(db *sql.DB) http.Handler {
@@ -75,7 +108,12 @@ func webAPI(db *sql.DB) http.Handler {
 			fail(w, 400, e)
 			return
 		}
-		steps, ok, e := find(db, a, b, 12, q.Get("strict") == "true")
+		mask, e := queryMask(q)
+		if e != nil {
+			fail(w, 400, e)
+			return
+		}
+		steps, ok, e := shortest(a, b, 12, func(id string) ([]Step, error) { return neighborsAllowed(db, id, mask) })
 		if e != nil {
 			fail(w, 500, fmt.Errorf("search unavailable"))
 			return
@@ -102,7 +140,12 @@ func webAPI(db *sql.DB) http.Handler {
 			fail(w, 400, e)
 			return
 		}
-		edges, e := neighbors(db, id, q.Get("strict") == "true")
+		mask, e := queryMask(q)
+		if e != nil {
+			fail(w, 400, e)
+			return
+		}
+		edges, e := neighborsAllowed(db, id, mask)
 		if e != nil {
 			fail(w, 500, fmt.Errorf("search unavailable"))
 			return
@@ -124,6 +167,7 @@ func webAPI(db *sql.DB) http.Handler {
 		}
 		jsonReply(w, 200, map[string]any{"next": next, "root": webArtist{id, label(db, id)}, "total": len(seen), "steps": steps})
 	})
+	mux.HandleFunc("GET /api/categories", func(w http.ResponseWriter, r *http.Request) { jsonReply(w, 200, json.RawMessage(categoryJSON)) })
 	mux.HandleFunc("GET /api/stats", func(w http.ResponseWriter, r *http.Request) {
 		result := map[string]int{}
 		for _, table := range []string{"artist", "fact", "participant"} {

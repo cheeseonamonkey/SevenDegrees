@@ -49,4 +49,11 @@ func TestWeb(t *testing.T) {
 	}
 	request("/api/path?from=missing&to=David+Bowie", 400)
 	request("/api/stats", 200)
+	request("/api/categories", 200)
+	request("/api/neighbors?artist=Tom+Morello&covers=maybe", 400)
+	w = request("/api/path?from=Tom+Morello&to=David+Bowie&covers=false", 200)
+	var filtered struct{ Found bool }
+	if e = json.Unmarshal(w.Body.Bytes(), &filtered); e != nil || filtered.Found {
+		t.Fatal(w.Body.String(), e)
+	}
 }

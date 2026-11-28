@@ -11,9 +11,12 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
     "3d-force-graph": "1.80.3",
+    "d3-force-3d": "3.0.6",
+    "three-spritetext": "1.10.0",
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@playwright/test": "1.65.1"
+    "@playwright/test": "1.65.1",
+    "esbuild": "0.28.2"
   }
 }

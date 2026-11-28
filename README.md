@@ -148,7 +148,7 @@ uses 3D Force Graph (Three.js) with Cytoscape.js as a 2D fallback. The global
 view renders the 100 largest Leiden communities (not genre classifications);
 all connected artists remain searchable. Local maps retain expansion state,
 have mobile/desktop display limits, and export to JSON. Five independent
-category switches constrain traversal and timeline exploration. The overview
+category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance. The overview
 is an unfiltered aggregate of the original graph.
 
 This is a read-only static file API, not a server accepting arbitrary SPARQL
@@ -156,6 +156,22 @@ or dynamic RPC requests. The shared graph client provides logical search,
 neighbor, path and evidence operations over those files. Search matches name
 and word prefixes, not arbitrary infixes. Large or unsuccessful path searches
 can still read many topology blocks; paths are bounded to 12 links.
+
+### Relationship parameters
+
+Every path and neighborhood query accepts five independent optional booleans:
+`collaborations`, `memberships`, `production`, `covers`, `professional`.
+Unspecified flags default to enabled (or retain the existing mask/strict
+setting). For example, in the shared JS client:
+
+```js
+await query('/api/path', {from: 'The Wiggles', to: 'Slayer', covers: false, production: true});
+```
+
+The local HTTP server accepts the equivalent query parameters, e.g.
+`/api/path?from=The+Wiggles&to=Slayer&covers=false&production=true`.
+MCP tools expose the same boolean parameters. GitHub Pages hosts static data,
+so dynamic queries execute in the shared client, not as server-side routes.
 
 ### Read-only MCP
 

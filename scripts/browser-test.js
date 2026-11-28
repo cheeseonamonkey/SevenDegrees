@@ -21,6 +21,13 @@ const {server}=require('./test-server')(process.argv[2]);
    await page.locator('#dimension [data-dimension="3D"]').click();
    assert.equal(await page.locator('#dimension button[aria-pressed=true]').textContent(),'3D');
    assert.ok(await page.locator('#network canvas').count());
+   await page.locator('#layout-button').click();
+   await page.locator('#layout-mode').selectOption('force');
+   await page.locator('#labels').uncheck();
+   await page.locator('#labels').check();
+   await page.locator('#layout-mode').selectOption('cluster');
+   await page.locator('#layout-button').click();
+   assert.ok(await page.locator('#detail a[href^="https://open.spotify.com/search/"]').count());
    await page.locator('#filters summary').click();
    if(await page.locator('#filter-options input').count()===5){
     for(const input of await page.locator('#filter-options input').all())await input.uncheck();
