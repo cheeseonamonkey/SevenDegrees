@@ -26,27 +26,36 @@
 <details id="filters"><summary>Relationships <small id="filter-count"></small></summary><div id="filter-options"></div></details>
 <details id="settings"><summary>Settings <small id="settings-summary"></small></summary>
 <div id="generation-settings">
+<div class="knobs">
+<label title="Coordinates depth, branching and the number of links added">Growth <input id="growth-amount" type="range" min="0" max="100" value="45"></label>
+<label title="Familiar artists toward surprising connections">Discovery <input id="discovery" type="range" min="0" max="100" value="40"></label>
+<label title="Balance new artists with links between existing artists">Interconnect <input id="weave" type="range" min="0" max="100" value="35"></label>
+</div>
+
+<small id="generation-summary" aria-live="polite"></small>
+</div>
+<small class="settings-note">Main sliders coordinate advanced values. Advanced edits override them.</small>
+<div id="layout-settings">
+<div class="knobs"><label>Layout <select id="layout-mode"><option value="interesting" selected>Interesting</option><option value="force">Force-directed</option><option value="cluster">Relationship type</option><option value="radial">Radial</option></select></label><label title="Coordinates spacing, repulsion and node scale">Spread <input id="spread" type="range" min="0" max="100" value="50"></label>
+<label><input id="labels" type="checkbox" checked> Labels</label></div>
+
+</div>
+<details id="advanced"><summary>Advanced</summary><div id="advanced-generation">
 <label>Rank by <select id="ranking"><option value="popular">Popularity</option><option value="degree">Connectivity</option><option value="balanced">More diversity</option></select></label>
-<label title="Fraction of eligible connections, limited by the caps below">Draw fraction <input id="fraction" type="range" min="0" max="1" step="0.05" value="0.4"></label>
-<label title="Reduces the branch budget at each additional hop">Decay <input id="decay" type="range" min="0" max="1" step="0.05" value="0.65"></label>
+<label title="Fraction of eligible connections, limited by the caps below">Draw fraction <input id="fraction" type="range" min="0" max="1" step="0.01" value="0.4"></label>
+<label title="Reduces the branch budget at each additional hop">Decay <input id="decay" type="range" min="0" max="1" step="0.01" value="0.65"></label>
 <label>Depth <input id="depth" type="number" min="1" max="8" value="3"></label>
 <label>Max per artist <input id="max-branch" type="number" min="1" max="250" value="16"></label>
 <label>Links per growth <input id="max-connections" type="number" min="0" max="1000" value="100"></label>
 <label>Variation <input id="variation" type="range" min="0" max="1" step="0.01" value="0.12"></label>
-<small id="generation-summary" aria-live="polite"></small>
-<label><input id="cross-links" type="checkbox"> Connect artists already on map</label>
-</div>
-<small class="settings-note">Generation changes rebuild the map. Appearance changes keep it intact.</small>
-<div id="layout-settings">
-<label>Layout <select id="layout-mode"><option value="force">Force-directed</option><option value="cluster">By relationship type</option></select></label>
+</div><div id="advanced-layout">
+
 <label>Spacing <input id="spacing" type="range" min="35" max="120" value="65"></label>
 <label>Node size <input id="node-size" type="range" min="0.5" max="2" step="0.1" value="1"></label>
 <label>Degree influence <input id="degree-size" type="range" min="0" max="2" step="0.1" value="0.6"></label>
 <label>Repulsion <input id="repulsion" type="range" min="0.3" max="3" step="0.1" value="1.4"></label>
 <label>Label size <input id="label-size" type="range" min="0.5" max="1.5" step="0.1" value="1"></label>
-<label><input id="labels" type="checkbox" checked> Labels</label>
-</div>
-
+</div></details>
 </details>
 <div class="actions"><button id="submit" type="submit">Explore</button></div>
 </form>

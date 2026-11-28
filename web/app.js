@@ -31,6 +31,19 @@ let mode='explore',dimension='2D',operation,inspection,routeSet=[],routeIndex=0,
 const viewer=new MapViewer($('network'),{onNode:selectNode,onLink:selectLink,onFallback:()=>{dimension='2D';syncDimension()}});
 const policy=()=>Object.fromEntries(Array.from(document.querySelectorAll('#filter-options input'),e=>[e.name,e.checked]));
 const generation=()=>({seed,ranking:$('ranking').value,variation:Number($('variation').value),fraction:Number($('fraction').value),decay:Number($('decay').value),depth:Number($('depth').value),maxBranch:Number($('max-branch').value),maxConnections:Number($('max-connections').value)});
+const weave=()=>Number($('weave').value)/100;
+const linkReserve=o=>Math.min(Math.floor(o.maxConnections*.5),Math.round(o.maxConnections*weave()*.65));
+const newBudget=o=>o.maxConnections-linkReserve(o);
+let applyingKnob=false;
+function applyKnob(id){
+ const t=Number($(id).value)/100,round=(v,n=0)=>Number(v.toFixed(n));
+ const values=id==='growth-amount'?{
+  fraction:round(.05+.9*t,2),decay:round(.4+.55*t,2),depth:1+Math.round(5*t), 'max-branch':Math.round(4+56*t*t),'max-connections':Math.round(10+450*t*t)
+ }:id==='discovery'?{variation:round(.05+.95*t,2),ranking:t>.7?'balanced':'popular'}
+ :id==='spread'?{spacing:Math.round(35+85*t),repulsion:round(.6+1.7*t,1),'node-size':round(.8+.4*t,1),'degree-size':round(.4+.4*t,1)}:{};
+ applyingKnob=true;for(const [key,value] of Object.entries(values)){$(key).value=value;$(key).dispatchEvent(new Event('input'))}applyingKnob=false;
+}
+
 function status(text='',busy=false){$('status').replaceChildren(...(text?[busy?spinner(text):el('span',text)]:[]))}
 function begin(text){
  clearTimeout(refreshTimer);operation?.abort();operation=new AbortController();const signal=operation.signal;
@@ -58,7 +71,7 @@ function permalink(id){const u=new URL(location.href);if(id)u.searchParams.set('
 function setMode(next,clear=true){
  if(clear){permalink();operation?.abort();closeOptions.forEach(fn=>fn());clearMap();status();$('submit').disabled=false;$('grow').disabled=false}
  mode=next;$('destination').hidden=next==='explore';$('to').required=next==='path';
- $('generation-settings').hidden=next==='path'||!staticMode;$('submit').textContent=next==='path'?'Find connections':'Explore';
+ $('generation-settings').hidden=next==='path'||!staticMode;$('advanced-generation').hidden=next==='path'||!staticMode;$('submit').textContent=next==='path'?'Find connections':'Explore';
  for(const b of document.querySelectorAll('[data-mode]'))b.setAttribute('aria-pressed',String(b.dataset.mode===next));
 }
 function appendLinks(links){
@@ -75,24 +88,25 @@ function appendPage(p){
  pages.set(p.root.id,p.next);
 }
 async function crossLinks(opt,previous=new Set(),used=model.links.size){
- if(!staticMode||!$('cross-links').checked||model.nodes.size<3)return false;
- const settings=generation(),remaining=settings.maxConnections-used;
- if(remaining<=0)return false;
+ if(!staticMode||!weave()||model.nodes.size<3)return false;
+ const settings=generation(),remaining=Math.min(settings.maxConnections-used,linkReserve(settings));
+ if(remaining<=0||settings.fraction===0)return false;
  const sources=[...model.nodes.keys()].filter(id=>!previous.has(id));
+ if(!sources.length&&previous.size)sources.push(...[...previous].slice(0,64));
  if(!sources.length)return false;
- const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],sources,existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,maxConnections:remaining},opt);
+ const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],sources,existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,fraction:Math.min(1,.25+weave()),maxConnections:remaining},opt);
  if(!opt.signal.aborted){appendLinks(edges);return edges.length>0}
 }
 function generationSummary(){
  if(!rootID)return;
  const o=generation(),direct=[...model.links.values()].filter(e=>e.source===rootID||e.target===rootID).length;
- const budget=Math.min(o.maxBranch,Math.ceil(rootTotal*o.fraction),o.maxConnections);
+ const budget=Math.min(o.maxBranch,Math.ceil(rootTotal*o.fraction),newBudget(o));
  const capped=budget<Math.ceil(rootTotal*o.fraction);
- $('generation-summary').textContent=direct+' / '+rootTotal.toLocaleString()+' direct · '+model.links.size+' links'+(capped?' · initial batch capped':'');
+ $('generation-summary').textContent=direct+' / '+rootTotal.toLocaleString()+' direct · '+model.links.size+' links · '+o.maxConnections+' per growth'+(linkReserve(o)?' ('+linkReserve(o)+' reserved for cross-links)':'')+(capped?' · branch capped':'');
 }
 async function openArtist(value,opt,refresh=false){
  const config=generation();
- const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...config},opt);
+ const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...config,maxConnections:newBudget(config)},opt);
  if(opt.signal.aborted)return;
  const selected=refresh?selectedID:null;
  if(refresh){inspect();model.clear();pages.clear();growth.clear();spent.clear()}else clearMap();
@@ -107,7 +121,7 @@ async function openArtist(value,opt,refresh=false){
 }
 function refreshGraph(){
  clearTimeout(refreshTimer);if(!rootID||mode!=='explore'||!staticMode)return;
- if([...$('generation-settings').querySelectorAll('input')].some(e=>!e.checkValidity())){operation?.abort();$('submit').disabled=false;status('Check generation settings.');return}
+ if([...$('settings').querySelectorAll('input')].some(e=>!e.checkValidity())){operation?.abort();$('submit').disabled=false;$('grow').disabled=false;status('Check generation settings.');return}
  const id=rootID;operation?.abort();status('Updating map…',true);$('submit').disabled=true;
  refreshTimer=setTimeout(async()=>{
   if(rootID!==id)return;
@@ -159,7 +173,7 @@ async function extendMap(id,frontier){
   const settings=generation(),before=model.links.size,previous=new Set(model.nodes.keys());
   if(staticMode){
    const exclude=frontier?[]:[...new Set([...model.links.values()].filter(e=>e.source===id||e.target===id).map(e=>e.source===id?e.target:e.source))];
-   const p=await api('/api/generate',{artist:id,...policy(),...settings,depth:1,known:[...previous],exclude,...(frontier?{frontier,freshOnly:true}:{})},opt);
+   const p=await api('/api/generate',{artist:id,...policy(),...settings,maxConnections:newBudget(settings),depth:1,known:[...previous],exclude,...(frontier?{frontier,freshOnly:true}:{})},opt);
    if(opt.signal.aborted)return;
    appendLinks(p.links);
    if(frontier){for(const a of frontier)growth.set(a,(growth.get(a)||0)+1);for(const a of p.exhausted)spent.add(a)}
@@ -183,7 +197,7 @@ $('grow').onclick=async()=>{
  const candidates=[...model.nodes.keys()].filter(id=>!spent.has(id)&&(model.nodes.get(id).connections??Infinity)>adjacent.get(id).size);
  if(!candidates.length){status('No unexplored connections remain in this map.');return}
  // Rotate through the least-explored branches, avoiding exhausted leaves.
- candidates.sort((a,b)=>(growth.get(a)||0)-(growth.get(b)||0)||adjacent.get(a).size-adjacent.get(b).size||a.localeCompare(b));
+ candidates.sort((a,b)=>(growth.get(a)||0)-(growth.get(b)||0)||((model.nodes.get(b).interest||0)-(model.nodes.get(a).interest||0))*.05+adjacent.get(a).size-adjacent.get(b).size||a.localeCompare(b));
  await extendMap(rootID||model.nodes.keys().next().value,candidates.slice(0,32))
 };
 function selectLink(id){
@@ -257,7 +271,7 @@ $('search').onsubmit=e=>{e.preventDefault();submit()};
 for(const b of document.querySelectorAll('[data-mode]'))b.onclick=()=>{if(mode!==b.dataset.mode)setMode(b.dataset.mode)};
 $('reset').onclick=()=>{
  setMode('explore');for(const id of ['from','to']){$(id).value='';delete $(id).dataset.id}
- $('search').reset();seed=0;$('generation-summary').textContent='';$('settings-summary').textContent='';$('filter-options').onchange();layoutSettings();$('settings').open=false;$('filters').open=false;dimension='2D';syncDimension();$('from').focus()
+ $('search').reset();for(const id of ['growth-amount','discovery','spread'])applyKnob(id);seed=0;$('generation-summary').textContent='';$('settings-summary').textContent='';$('filter-options').onchange();layoutSettings();$('settings').open=false;$('advanced').open=false;$('filters').open=false;dimension='2D';syncDimension();$('from').focus()
 };
 let bundle,dimensionRequest=0;
 $('dimension').onclick=async e=>{
@@ -270,12 +284,12 @@ $('dimension').onclick=async e=>{
 };
 $('fit').onclick=()=>viewer.fit();
 function layoutSettings(event){
- if(event?.type==='input'&&['spacing','repulsion'].includes(event.target.id))return;
+ if(event?.type==='input'&&['spacing','repulsion','spread'].includes(event.target.id))return;
  const previous=viewer.settings;
- const next={cluster:$('layout-mode').value==='cluster',spacing:Number($('spacing').value),labels:$('labels').checked,nodeSize:Number($('node-size').value),degreeSize:Number($('degree-size').value),repulsion:Number($('repulsion').value),labelSize:Number($('label-size').value)};
+ const next={layout:$('layout-mode').value,spacing:Number($('spacing').value),labels:$('labels').checked,nodeSize:Number($('node-size').value),degreeSize:Number($('degree-size').value),repulsion:Number($('repulsion').value),labelSize:Number($('label-size').value)};
  if(Object.keys(next).every(k=>previous[k]===next[k]))return;
  viewer.settings=next;
- if(model.nodes.size)draw(false,['cluster','spacing','repulsion'].some(k=>previous[k]!==next[k]))
+ if(model.nodes.size)draw(false,['layout','spacing','repulsion'].some(k=>previous[k]!==next[k]))
 }
 function bindRanges(){
  for(const input of document.querySelectorAll('#settings input[type=range]')){
@@ -286,9 +300,14 @@ function bindRanges(){
  }
 }
 bindRanges();
-$('layout-settings').oninput=layoutSettings;
-$('layout-settings').onchange=layoutSettings;
-$('generation-settings').onchange=refreshGraph;
+const appearance=new Set(['layout-mode','spacing','labels','node-size','degree-size','repulsion','label-size','spread']);
+$('settings').addEventListener('input',e=>{if(!applyingKnob&&appearance.has(e.target.id))layoutSettings(e)});
+$('settings').addEventListener('change',e=>{
+ const id=e.target.id;if(!id)return;
+ if(['growth-amount','discovery','spread'].includes(id))applyKnob(id);
+ if(appearance.has(id))layoutSettings(e);
+ else refreshGraph()
+});
 $('shuffle').onclick=()=>{seed=(seed+1)>>>0;refreshGraph()};
 $('export').onclick=()=>{const u=URL.createObjectURL(new Blob([JSON.stringify({nodes:[...model.nodes.values()],links:[...model.links.values()]},null,2)],{type:'application/json'}));const a=el('a');a.href=u;a.download='musicatlas-map.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
 function filters(categories){
@@ -302,5 +321,6 @@ function filters(categories){
 }
 filters(relationshipTypes);$('api-link').hidden=!staticMode;$('generation-settings').hidden=!staticMode;
 api('/api/stats').then(s=>$('stats').textContent=s.artist.toLocaleString()+' artists · '+s.fact.toLocaleString()+' evidence records').catch(e=>$('stats').textContent=e.message);
+for(const id of ['growth-amount','discovery','spread'])applyKnob(id);layoutSettings();
 setMode('explore',false);
 const initial=new URL(location.href).searchParams.get('artist');if(initial){$('from').value=initial;$('from').dataset.id=initial;submit()}

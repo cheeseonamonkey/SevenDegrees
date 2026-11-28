@@ -171,8 +171,15 @@ so dynamic queries execute in the shared client, not as server-side routes.
 
 ### Ranked web generation
 
-The map settings expose a draw fraction (default 0.4), decay per hop (0.65),
-depth (3), max per artist (16), and per-operation link budget (100).
+The browser presents four coordinated sliders: Growth, Discovery, Interconnect,
+and Spread. Advanced retains draw fraction, decay, depth, per-artist and
+per-operation budgets, ranking, seeded variation, and appearance controls.
+Growth adjusts expansion breadth and depth together; Discovery controls
+variation and ranking bias; Interconnect reserves part of each batch for
+existing-artist links; Spread coordinates node scale and force settings.
+Advanced edits override the effective values until the corresponding main
+slider changes again. Generation settings rebuild the root map; appearance
+settings preserve its links.
 Explore reserves capacity for later layers and allocates each layer round-robin,
 preferring new artists. Grow map chooses up to 32 least-explored branches and
 adds fresh artists; Expand adds more connections for one selected artist.
@@ -181,9 +188,11 @@ Neither operation has a lifetime display cap. Per-request limits (1,000 links,
 At hop `d`, the eligible-neighbor fraction and branch cap are multiplied by
 `decay ** d`. The ranking favors popularity, with a small hub penalty and a
 bounded bonus for artists with onward connections. Seeded variation is
-deterministic. Optional cross-links scan newly added artists against the map.
-Large 2D maps use an off-thread Barnes–Hut force layout with soft anchors for
-existing positions. Device memory and rendering performance remain practical
+deterministic. Automatic cross-links scan newly added artists against the map, using the shared ranking and a reserved budget. Interconnect at zero disables them.
+The default Interesting layout uses ranked radial anchors, degree-sensitive
+link strengths and relationship-sensitive lengths. Force-directed,
+relationship-type and radial layouts are also available. Interesting and
+large 2D force layouts use off-thread Barnes–Hut repulsion. Device memory and rendering performance remain practical
 limits. Rebuild the checked-in layout worker with `npm ci && npm run build:layout`.
 The compact rank index is derived from the installed graph during Pages
 assembly and loaded only for ranked operations; pathfinding remains exact

@@ -24,15 +24,48 @@ function layoutData(model,settings){
   const c=centers.get(n.group),angle=i*2.3999632297,r=Math.sqrt(i)*settings.spacing*.45;
   n.anchor=c;n.initial={x:c.x+Math.cos(angle)*r,y:c.y+Math.sin(angle)*r,z:Math.sin(i*1.7)*r*.3};
  }
+ // Layouts are views over the same evidence graph, never new relationships.
+ if(settings.layout==='interesting'||settings.layout==='radial'){
+  const neighbors=new Map(nodes.map(n=>[n.id,[]]));
+  for(const e of links){neighbors.get(e.source)?.push(e.target);neighbors.get(e.target)?.push(e.source)}
+  const root=nodes.find(n=>n.root)||nodes[0],depths=new Map(),layers=[];
+  if(root){
+   depths.set(root.id,0);layers.push([root.id]);
+   for(let d=0;d<layers.length;d++){
+    const next=[];
+    for(const id of layers[d]){
+     const adjacent=neighbors.get(id).slice().sort((a,b)=>(ids.get(b).interest||0)-(ids.get(a).interest||0)||a.localeCompare(b));
+     for(const to of adjacent)if(!depths.has(to)){depths.set(to,d+1);next.push(to)}
+    }
+    if(next.length)layers.push(next)
+   }
+   const disconnected=nodes.filter(n=>!depths.has(n.id));if(disconnected.length)layers.push(disconnected.map(n=>n.id));
+   let radius=0;
+   for(const [d,ring] of layers.entries()){
+    if(d)radius=Math.max(radius+settings.spacing*1.25,ring.length*settings.spacing/(2*Math.PI));
+    for(const [i,id] of ring.entries()){
+     const n=ids.get(id),angle=i*2*Math.PI/ring.length+d*.32;
+     n.anchor={x:Math.cos(angle)*radius,y:Math.sin(angle)*radius,z:0};
+     n.initial={...n.anchor};
+    }
+   }
+  }
+ }
+ for(const e of links){
+  const a=ids.get(e.source),b=ids.get(e.target),bit=category(e.kind)?.bit||0;
+  const hub=Math.min(2,Math.log1p(Math.max(a?.degree||0,b?.degree||0))*.28);
+  e.distance=settings.spacing*(settings.layout==='interesting'?1+hub+(bit===2?-.16:bit===8?.16:0):1);
+  e.strength=settings.layout==='interesting'?Math.max(.12,.8/Math.sqrt(Math.max(1,Math.min(a?.degree||1,b?.degree||1)))):undefined;
+ }
  return {nodes,links};
 }
 function labelSprite(n,s){
- const t=new SpriteText(s.labels?n.name:'');t.color='#eee';t.textHeight=s.labelSize*Math.min(6,Math.max(2.5,size(n,s)*.65));t.strokeWidth=.5;t.strokeColor='#181818';t.material.depthTest=false;t.material.depthWrite=false;t.material.transparent=true;t.renderOrder=100;return t
+ const t=new SpriteText(s.labels?n.name:'');t.color='#fff';t.backgroundColor='#181818';t.padding=1;t.fontWeight='600';t.textHeight=s.labelSize*Math.min(11,Math.max(6,size(n,s)));t.strokeWidth=.25;t.strokeColor='#181818';t.material.opacity=1;t.material.alphaTest=.05;t.material.depthTest=false;t.material.depthWrite=false;t.material.transparent=true;t.renderOrder=100;t.visible=s.labels;return t
 }
 const safeLabel=value=>{const el=document.createElement('span');el.textContent=value;return el};
 class MapViewer {
  constructor(el,{onNode,onLink,onFallback}){
-  this.settings={cluster:false,spacing:65,labels:true,nodeSize:1,degreeSize:.6,repulsion:1.4,labelSize:1};this.el=el;this.onNode=onNode;this.onLink=onLink;this.onFallback=onFallback;
+  this.settings={layout:'interesting',spacing:65,labels:true,nodeSize:1,degreeSize:.6,repulsion:1.4,labelSize:1};this.el=el;this.onNode=onNode;this.onLink=onLink;this.onFallback=onFallback;
   this.resize=new ResizeObserver(()=>this.measure());this.resize.observe(el);
  }
  measure(){
@@ -40,7 +73,7 @@ class MapViewer {
   this.cy?.resize();
  }
  destroy(){
-  this.layout?.stop();this.layout=null;this.layoutWorker?.terminate();this.layoutWorker=null;this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
+  if(this.labelFrame)cancelAnimationFrame(this.labelFrame);this.labelFrame=null;this.layout?.stop();this.layout=null;this.layoutWorker?.terminate();this.layoutWorker=null;this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
   this.el.replaceChildren();
  }
  mode(mode){
@@ -60,34 +93,42 @@ class MapViewer {
     console.warn('3D renderer unavailable',e);this.destroy();this.current=null;this.mode('2D');this.onFallback?.();
    }
   }else{
-   this.cy=cytoscape({container:this.el,elements:[],style:[
+   this.labelZoom=1;this.cy=cytoscape({container:this.el,elements:[],style:[
     {selector:'node',style:{
      'background-color':n=>nodeColor(n.data()),'background-fill':'radial-gradient',
      'background-gradient-stop-colors':n=>'#e5e0ed '+nodeColor(n.data()),
      'background-gradient-stop-positions':'0% 85%','border-width':.7,'border-color':'#999',
-     label:n=>this.settings.labels?n.data('name'):'',color:getComputedStyle(document.body).color,
-     'font-size':n=>Math.max(9,Math.min(16,size(n.data(),this.settings)*.9*this.settings.labelSize)),
-     'min-zoomed-font-size':7,'text-valign':'top','text-margin-y':-3,'text-halign':'center',
-     'text-outline-width':2,'text-outline-color':getComputedStyle(document.body).backgroundColor,
-     'text-wrap':'wrap','text-max-width':120,'z-index-compare':'manual','z-index':2,
+     label:n=>this.settings.labels&&(this.cy?.nodes().length<=30||this.labelZoom>=.6||n.selected()||n.data('root')||n.data('degree')>=4)?n.data('name'):'',color:getComputedStyle(document.body).color,
+     'text-opacity':1,'text-background-color':getComputedStyle(document.body).backgroundColor,'text-background-opacity':1,'text-background-padding':2,'font-weight':600,
+     'font-size':n=>Math.max(12/Math.max(.05,this.labelZoom||1),Math.min(21,size(n.data(),this.settings)*1.5*this.settings.labelSize)),
+     'min-zoomed-font-size':0,'text-valign':'top','text-margin-y':-3,'text-halign':'center',
+     'text-outline-width':1,'text-outline-color':getComputedStyle(document.body).backgroundColor,
+     'text-wrap':'none','z-index-compare':'manual','z-index':2,
      width:n=>size(n.data(),this.settings)*2.4,height:n=>size(n.data(),this.settings)*2.4
     }},
     {selector:'node[root]',style:{'border-width':2,'border-color':'#b8a0eb','font-weight':600}},
-    {selector:'node:selected',style:{'underlay-color':'#b8a0eb','underlay-opacity':.24,'underlay-padding':5,'border-width':2,'border-color':'#b8a0eb','z-index':10}},
+    {selector:'node:selected',style:{label:n=>this.settings.labels?n.data('name'):'','underlay-color':'#b8a0eb','underlay-opacity':.24,'underlay-padding':5,'border-width':2,'border-color':'#b8a0eb','z-index':10}},
     {selector:'edge',style:{'line-color':e=>edgeColor(e.data()),width:1.2,opacity:.9,'curve-style':'bezier','z-index-compare':'manual','z-index':0}},
     {selector:'edge[kind = "cover"],edge[kind = "cover-reference"],edge[kind = "tribute"]',style:{'line-style':'dashed'}}
    ]});
+   this.cy.on('zoom',()=>{
+    const zoom=this.cy.zoom(),bucket=Math.max(.05,Math.round(zoom*20)/20);
+    if(bucket===this.labelZoom)return;this.labelZoom=bucket;
+    if(this.labelFrame)return;
+    this.labelFrame=requestAnimationFrame(()=>{this.labelFrame=null;this.cy?.style().update()})
+   });
    this.cy.on('tap','node',e=>this.onNode(e.target.id()));
    this.cy.on('tap','edge',e=>this.onLink(e.target.id()));
   }
  }
  select(id){
   this.selected=id;
-  if(this.cy){this.cy.nodes().unselect();if(id)this.cy.getElementById(id).select()}
+  if(this.cy){this.cy.nodes().unselect();if(id)this.cy.getElementById(id).select();this.cy.style().update()}
   if(this.three)this.three.nodeColor(n=>n.id===id?'#d9c4ff':nodeColor(n))
  }
  update(model,reset=false,relayout=true){
-  const {nodes,links}=layoutData(model,this.settings),{cluster,spacing}=this.settings;
+  const {nodes,links}=layoutData(model,this.settings),{layout,spacing}=this.settings;
+  const cluster=layout==='cluster',radial=layout==='radial',interesting=layout==='interesting';
   if(this.three){
    if(!relayout){this.three.nodeThreeObject(n=>labelSprite(n,this.settings));this.three.nodeVal(n=>Math.pow(size(n,this.settings)/4,3));return}
    const previous=reset?new Map():new Map(this.three.graphData().nodes.map(n=>[n.id,n]));
@@ -96,10 +137,10 @@ class MapViewer {
    this.three.graphData({nodes:data,links});
    this.three.nodeThreeObject(n=>labelSprite(n,this.settings));
    this.three.nodeVal(n=>Math.pow(size(n,this.settings)/4,3));
-   this.three.d3Force('link').distance(spacing);
+   this.three.d3Force('link').distance(e=>e.distance||spacing).strength(e=>radial?.035:e.strength??.25);
    this.three.d3Force('charge').strength(-spacing*3*this.settings.repulsion);
    this.three.d3Force('collision',forceCollide(n=>size(n,this.settings)+8));
-   for(const [axis,force] of [['x',forceX],['y',forceY],['z',forceZ]])this.three.d3Force('cluster-'+axis,cluster?force(n=>n.anchor[axis]).strength(.12):null);
+   for(const [axis,force] of [['x',forceX],['y',forceY],['z',forceZ]])this.three.d3Force('cluster-'+axis,(cluster||radial||interesting)?force(n=>n.anchor[axis]).strength(radial?.8:cluster?.12:.035):null);
    this.three.d3ReheatSimulation();
    if(nodes.length===1)this.fit();
   }else if(this.cy){
@@ -121,7 +162,7 @@ class MapViewer {
    this.cy.style().update();this.select(this.selected);
    if(!nodes.length)return;
    const animate=!matchMedia('(prefers-reduced-motion: reduce)').matches;
-   if(nodes.length>200){
+   if(!radial&&(interesting||nodes.length>200)){
     // Barnes-Hut repulsion off-thread, with soft anchors for existing positions.
     const worker=new Worker('layout-worker.min.js');this.layoutWorker=worker;
     const cy=this.cy;
@@ -132,13 +173,13 @@ class MapViewer {
      this.layout=cy.layout({name:'preset',positions,fit:reset,padding:35,animate:animate&&nodes.length<1500,animationDuration:240});this.layout.run();
     };
     worker.onerror=()=>{if(this.layoutWorker===worker){worker.terminate();this.layoutWorker=null;console.warn('Large-map layout unavailable; retaining placed nodes')}};
-    worker.postMessage({nodes:nodes.map(n=>{const p=initial.get(n.id);return {id:n.id,x:p.x,y:p.y,x0:p.x,y0:p.y,old:old.has(n.id),radius:size(n,this.settings)*1.2,anchor:n.anchor}}),links:links.map(e=>({source:e.source,target:e.target})),spacing,repulsion:this.settings.repulsion,cluster});
+    worker.postMessage({nodes:nodes.map(n=>{const p=nodes.length<=200?n.initial:initial.get(n.id);return {id:n.id,x:p.x,y:p.y,x0:p.x,y0:p.y,old:old.has(n.id),radius:size(n,this.settings)*1.2,anchor:n.anchor}}),links:links.map(e=>({source:e.source,target:e.target,distance:e.distance,strength:e.strength})),spacing,repulsion:this.settings.repulsion,layout});
     return
    }
    const canonical=new Map(nodes.map(n=>[n.id,n.initial]));
    // Compute targets from canonical coordinates, then animate from the actual current view.
    this.cy.nodes().positions(n=>canonical.get(n.id()));
-   if(!cluster&&nodes.length>1)this.cy.layout({name:'cose',animate:false,randomize:false,fit:false,idealEdgeLength:spacing,nodeRepulsion:spacing*100*this.settings.repulsion}).run();
+   if(!cluster&&!radial&&nodes.length>1)this.cy.layout({name:'cose',animate:false,randomize:false,fit:false,idealEdgeLength:spacing,nodeRepulsion:spacing*100*this.settings.repulsion}).run();
    const target=Object.fromEntries(this.cy.nodes().map(n=>[n.id(),{...n.position()}]));
    if(animate&&!reset)this.cy.nodes().positions(n=>old.get(n.id())||target[n.id()]);
    this.layout=this.cy.layout({name:'preset',positions:target,fit:reset,padding:35,animate:animate&&!reset,animationDuration:240});

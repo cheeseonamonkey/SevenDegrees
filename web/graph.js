@@ -130,7 +130,7 @@ function createGraph(store){
       const degree=rank.degree[to]||0;
       // Prefer artists that can lead somewhere, without rewarding giant hubs.
       const branch=0.32*Math.min(4,Math.log1p(degree))-(degree<=1?.65:0);
-      return [to,w,score(to,rank,o.ranking)+branch+jitter(o.seed,from,to)*o.variation*8]
+      return [to,w,score(to,rank,o.ranking)+branch+jitter(o.seed,from,to)*o.variation*10]
      });
      candidates.sort((a,b)=>b[2]-a[2]||a[0]-b[0]);
      const budget=Math.min(Math.ceil(o.maxBranch*decay),Math.ceil(pairs.size*o.fraction*decay));
@@ -172,7 +172,7 @@ function createGraph(store){
    frontier=next;
   }
   const [steps,people,done]=await Promise.all([hydrate(chosen.map(([,to,w])=>[to,w])),artists(chosen.map(([from])=>from)),artists(exhausted)]);
-  const withDegree=(a,id)=>({...a,connections:rank.degree[id]||0});
+  const withDegree=(a,id)=>({...a,connections:rank.degree[id]||0,interest:score(id,rank,o.ranking)});
   return {root:withDegree(await artist(root),root),total,links:steps.map((s,i)=>({...s,from:withDegree(people[i],chosen[i][0]),to:withDegree(s.to,chosen[i][1])})),exhausted:done.map(a=>a.id),settings:o};
  }
  async function neighbors(name,strict=false,offset=0,progress){
@@ -239,14 +239,18 @@ function createGraph(store){
    for(const [a,b] of pairs){neighbors.get(a).add(b);neighbors.get(b).add(a)}
    const existing=new Set((params.existing||[]).map(pair=>[...pair].sort().join(':')));
    const namesByID=new Map(ids.map((id,i)=>[id,names[i]]));
+   const idByName=new Map(names.map((name,i)=>[name,ids[i]]));
+   for(const [x,y] of params.existing||[]){const a=idByName.get(x),b=idByName.get(y);if(a!==undefined&&b!==undefined){neighbors.get(a).add(b);neighbors.get(b).add(a)}}
+
    const available=pairs.filter(([a,b])=>!existing.has([namesByID.get(a),namesByID.get(b)].sort().join(':')));
    const scores=new Map(available.map(p=>{
     const [a,b]=p,small=neighbors.get(a),large=neighbors.get(b);
     let mutual=0;for(const c of small)if(large.has(c))mutual++;
-    return [p,Math.log1p(mutual)*.1+score(a,rank,o.ranking)+score(b,rank,o.ranking)+jitter(o.seed,a,b)*o.variation*8];
+    return [p,score(a,rank,o.ranking)*.5+score(b,rank,o.ranking)*.5-Math.log1p(mutual)*.22+jitter(o.seed,a,b)*o.variation*10];
    }));
    available.sort((a,b)=>scores.get(b)-scores.get(a)||a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
-   selected=available.slice(0,Math.min(o.maxConnections,Math.ceil(available.length*o.fraction)));
+   const unique=new Map();for(const p of available){const k=pairKey(p[0],p[1]);if(!unique.has(k))unique.set(k,p)}
+   selected=[...unique.values()].slice(0,Math.min(o.maxConnections,Math.ceil(unique.size*o.fraction)));
   }
   const steps=await hydrate(selected.map(([,to,w])=>[to,w])),people=await artists(selected.map(([from])=>from));
   return selected.map((_,i)=>({from:people[i],...steps[i]}));
