@@ -24,6 +24,8 @@ button .spinner{display:inline-block;vertical-align:middle;width:13px;height:13p
 #settings output{font-variant-numeric:tabular-nums;min-width:2.3em;text-align:right;color:var(--muted)}
 #settings input[type=range]{accent-color:var(--accent);vertical-align:middle}
 #detail p{margin:4px 0}.settings-note{display:block;margin:5px 0}
-#network{background:Canvas;box-shadow:0 2px 8px color-mix(in srgb,CanvasText 8%,transparent)}
+#network{position:relative;background:Canvas;box-shadow:0 2px 8px color-mix(in srgb,CanvasText 8%,transparent)}
 
 #settings .knobs{display:flex;flex-wrap:wrap;gap:2px 12px}#settings .knobs label{flex:0 1 auto;white-space:nowrap}#settings .knobs input[type=range]{width:clamp(70px,12vw,135px)}#advanced{border-top:1px solid var(--line);padding-top:4px}#result p{margin:4px 0}header p{font-size:.9rem}#settings .settings-note{font-size:.75rem}#records{max-width:950px}
+
+.graph-tooltip{position:absolute;z-index:20;max-width:min(320px,calc(100% - 8px));padding:6px 9px;border:1px solid var(--line);background:Canvas;color:CanvasText;font-size:.8rem;line-height:1.4;box-shadow:0 2px 7px #0003;pointer-events:none;overflow-wrap:anywhere}

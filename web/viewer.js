@@ -63,6 +63,20 @@ function labelSprite(n,s){
  const t=new SpriteText(s.labels?n.name:'');t.color='#fff';t.backgroundColor='#181818';t.padding=1;t.fontWeight='600';t.textHeight=s.labelSize*Math.min(11,Math.max(6,size(n,s)));t.strokeWidth=.25;t.strokeColor='#181818';t.material.opacity=1;t.material.alphaTest=.05;t.material.depthTest=false;t.material.depthWrite=false;t.material.transparent=true;t.renderOrder=100;t.visible=s.labels;return t
 }
 const safeLabel=value=>{const el=document.createElement('span');el.textContent=value;return el};
+function hoverText(model,item,edge=false){
+ if(!item||!model)return '';
+ if(edge){
+  const e=model.links.get(item.id),a=model.nodes.get(e?.source),b=model.nodes.get(e?.target);
+  if(!a||!b)return '';
+  return (category(e.kind)?.label||e.kind)+' · '+(e.description||connectionText(a,b,e))
+ }
+ const n=model.nodes.get(item.id);if(!n)return '';
+ const info=[n.name,n.disambiguation,n.type!=='Unknown'?n.type:null].filter(Boolean);
+ const count=item.degree;
+ if(Number.isFinite(n.connections))info.push(n.connections.toLocaleString()+' known connections');
+ if(Number.isFinite(count))info.push(count+' in this map');
+ return info.join(' · ')
+}
 class MapViewer {
  constructor(el,{onNode,onLink,onFallback}){
   this.settings={layout:'interesting',spacing:65,labels:true,nodeSize:1,degreeSize:.6,repulsion:1.4,labelSize:1};this.el=el;this.onNode=onNode;this.onLink=onLink;this.onFallback=onFallback;
@@ -73,8 +87,9 @@ class MapViewer {
   this.cy?.resize();
  }
  destroy(){
+  this.clearHover();this.el.onpointerleave=null;
   if(this.labelFrame)cancelAnimationFrame(this.labelFrame);this.labelFrame=null;this.layout?.stop();this.layout=null;this.layoutWorker?.terminate();this.layoutWorker=null;this.three?._destructor();this.cy?.destroy();this.three=this.cy=null;this.current=null;
-  this.el.replaceChildren();
+  this.tooltip=null;this.el.replaceChildren();
  }
  mode(mode){
   if(mode===this.current)return;
@@ -82,10 +97,11 @@ class MapViewer {
   if(mode==='3D'){
    try{
     this.three=new ForceGraph3D(this.el,{controlType:'orbit',rendererConfig:{antialias:true}})
-     .backgroundColor('#181818').showNavInfo(false).nodeId('id').nodeLabel(n=>safeLabel(n.name))
+     .backgroundColor('#181818').showNavInfo(false).nodeId('id').nodeLabel(n=>safeLabel(hoverText(this.model,n)))
      .nodeColor(n=>n.id===this.selected?'#d9c4ff':nodeColor(n)).nodeVal(n=>Math.pow(size(n,this.settings)/4,3)).nodeThreeObjectExtend(true).nodeThreeObject(n=>labelSprite(n,this.settings))
-     .nodeResolution(8).nodeOpacity(1).linkColor(edgeColor).linkOpacity(.92).linkWidth(e=>.35)
-     .linkLabel(e=>safeLabel(e.title||e.kind))
+     .nodeResolution(8).nodeOpacity(1).linkColor(edgeColor).linkOpacity(.92).linkWidth(e=>this.hoveredEdge===e.id?1.2:.35)
+     .linkLabel(e=>safeLabel(hoverText(this.model,e,true)))
+     .onLinkHover(e=>{this.hoveredEdge=e?.id;this.three?.linkWidth(l=>l.id===this.hoveredEdge?1.2:.35)})
      .onNodeClick(n=>this.onNode(n.id)).onLinkClick(e=>this.onLink(e.id)).enableNodeDrag(true)
      .cooldownTicks(100).onEngineStop(()=>{if(this.fitPending){this.fitPending=false;this.fit()}});
     this.measure();
@@ -109,6 +125,8 @@ class MapViewer {
     {selector:'node[root]',style:{'border-width':2,'border-color':'#b8a0eb','font-weight':600}},
     {selector:'node:selected',style:{label:n=>this.settings.labels?n.data('name'):'','underlay-color':'#b8a0eb','underlay-opacity':.24,'underlay-padding':5,'border-width':2,'border-color':'#b8a0eb','z-index':10}},
     {selector:'edge',style:{'line-color':e=>edgeColor(e.data()),width:1.2,opacity:.9,'curve-style':'bezier','z-index-compare':'manual','z-index':0}},
+    {selector:'edge.hover-link',style:{width:3,'z-index':1,opacity:1}},
+    {selector:'node.hover-node',style:{'border-width':2,'border-color':'#b8a0eb','z-index':9,label:n=>n.data('name')}},
     {selector:'edge[kind = "cover"],edge[kind = "cover-reference"],edge[kind = "tribute"]',style:{'line-style':'dashed'}}
    ]});
    this.cy.on('zoom',()=>{
@@ -117,16 +135,45 @@ class MapViewer {
     if(this.labelFrame)return;
     this.labelFrame=requestAnimationFrame(()=>{this.labelFrame=null;this.cy?.style().update()})
    });
+   this.tooltip=document.createElement('div');this.tooltip.className='graph-tooltip';this.tooltip.hidden=true;this.tooltip.setAttribute('role','tooltip');this.el.append(this.tooltip);
+   this.cy.on('mouseover','node,edge',e=>this.showHover(e));
+   this.cy.on('mousemove','node,edge',e=>this.moveHover(e));
+   this.cy.on('mouseout grab drag pan zoom','node,edge',()=>this.clearHover());
+   this.cy.on('pan zoom',()=>this.clearHover());
+   this.el.onpointerleave=()=>this.clearHover();
    this.cy.on('tap','node',e=>this.onNode(e.target.id()));
    this.cy.on('tap','edge',e=>this.onLink(e.target.id()));
   }
  }
+ clearHover(){
+  this.hoveredEdge=null;
+  if(this.hoverElements){this.hoverElements.removeClass('hover-node hover-link');this.hoverElements=null}
+  if(this.tooltip)this.tooltip.hidden=true;
+ }
+ showHover(event){
+  if(!this.tooltip||event.originalEvent?.pointerType==='touch')return;
+  this.clearHover();
+  const target=event.target,edge=target.isEdge();
+  const content=hoverText(this.model,target.data(),edge);if(!content)return;
+  this.hoverElements=edge?target.union(target.connectedNodes()):target.union(target.connectedEdges());
+  this.hoverElements.nodes().addClass('hover-node');this.hoverElements.edges().addClass('hover-link');
+  this.tooltip.textContent=content;this.tooltip.hidden=false;this.moveHover(event)
+ }
+ moveHover(event){
+  if(!this.tooltip||this.tooltip.hidden)return;
+  const r=event.renderedPosition;if(!r)return;
+  const w=this.tooltip.offsetWidth,h=this.tooltip.offsetHeight;
+  this.tooltip.style.left=Math.max(4,Math.min(this.el.clientWidth-w-4,r.x+12))+'px';
+  this.tooltip.style.top=Math.max(4,Math.min(this.el.clientHeight-h-4,r.y+14))+'px'
+ }
  select(id){
+  this.clearHover();
   this.selected=id;
   if(this.cy){this.cy.nodes().unselect();if(id)this.cy.getElementById(id).select();this.cy.style().update()}
   if(this.three)this.three.nodeColor(n=>n.id===id?'#d9c4ff':nodeColor(n))
  }
  update(model,reset=false,relayout=true){
+  this.clearHover();this.model=model;
   const {nodes,links}=layoutData(model,this.settings),{layout,spacing}=this.settings;
   const cluster=layout==='cluster',radial=layout==='radial',interesting=layout==='interesting';
   if(this.three){

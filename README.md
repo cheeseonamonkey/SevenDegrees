@@ -145,7 +145,7 @@ concurrent reads and an 8 MiB compressed-weight LRU cache. Bidirectional BFS
 reads topology first and retrieves artist names/evidence only for its result.
 The vanilla JS worker keeps the interface responsive. The graph explorer uses Cytoscape.js by default, with on-demand 3D Force Graph (Three.js). All connected artists remain searchable. Local maps retain expansion state,
 grow incrementally without a fixed cumulative cap, and export to JSON. Five independent
-category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges and scalable outlined labels. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance.
+category checkboxes constrain traversal and timeline exploration. Both renderers use category-colored edges, scalable opaque labels and artist/relationship hover descriptions. Hover uses already-loaded witnesses; clicking or tapping opens evidence on demand. The layout panel offers spacing, relationship-type clustering, force-directed layout, label visibility and an induced-map connection operation. Path output gives the degree count and evidence-aware natural-language descriptions. Listening links search Spotify, rather than guessing track IDs; evidence retains original provenance.
 
 This is a read-only static file API, not a server accepting arbitrary SPARQL
 or dynamic RPC requests. The shared graph client provides logical search,
