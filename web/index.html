@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#10161f">
+<meta name="theme-color" content="#181818">
 <title>MusicAtlas — Explore musical connections</title>
 <link rel="stylesheet" href="style.css">
 <script src="cytoscape.min.js" defer></script>
@@ -25,14 +25,21 @@
   <div class="field" id="destination" hidden><label class="sr-only" for="to">Destination</label><input id="to" placeholder="Connect to…" autocomplete="off"><div class="options" id="to-options" hidden></div></div>
   <button id="submit" class="primary" type="submit">Explore</button>
  </form>
- <details id="filters"><summary>Relationships <span id="filter-count"></span></summary><div id="filter-options"></div><div class="filter-actions"><button id="all-types" type="button">All</button><button id="no-types" type="button">None</button></div></details>
+ <details id="filters"><summary>Relationships <span id="filter-count"></span></summary><div class="filter-panel"><div id="filter-options"></div><div class="filter-actions"><button id="all-types" type="button">All</button><button id="no-types" type="button">None</button></div></div></details>
 </div>
 <main class="workspace">
  <section class="map-pane" aria-label="Music relationship map">
   <div id="network"></div>
   <div class="map-caption"><span id="map-count"></span><span id="legend"><i class="person"></i> Person <i class="group"></i> Group <i class="unknown"></i> Other / unknown</span><span id="edge-legend"></span></div>
-  <div class="map-actions"><div id="dimension" class="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="false">2D</button><button type="button" data-dimension="3D" aria-pressed="true">3D</button></div><button id="fit" type="button">Fit</button><button id="layout-button" type="button" aria-expanded="false">Layout</button><button id="export" type="button">Export</button></div>
-  <section id="layout-panel" hidden aria-label="Graph layout controls"><label>Layout <select id="layout-mode"><option value="cluster">By relationship type</option><option value="force">Force-directed</option></select></label><label>Spacing <input id="spacing" type="range" min="35" max="120" value="65"></label><label><input id="labels" type="checkbox" checked> Labels</label><button id="relayout" type="button">Reorganize</button><button id="connect-map" type="button" disabled>Connect mapped artists</button></section>
+  <div class="map-actions"><div id="dimension" class="dimension" role="group" aria-label="Map dimension"><button type="button" data-dimension="2D" aria-pressed="false">2D</button><button type="button" data-dimension="3D" aria-pressed="true">3D</button></div><button id="fit" type="button">Fit</button><button id="layout-button" type="button" aria-expanded="false">Map settings</button><button id="export" type="button">Export</button></div>
+  <section id="layout-panel" hidden aria-label="Graph layout controls"><label>Layout <select id="layout-mode"><option value="cluster">By relationship type</option><option value="force">Force-directed</option></select></label><label>Spacing <input id="spacing" type="range" min="35" max="120" value="65"></label><label><input id="labels" type="checkbox" checked> Labels</label><button id="relayout" type="button">Reorganize</button><hr>
+<label>Rank by <select id="ranking"><option value="popular">Popularity</option><option value="degree">Graph backlinks</option><option value="balanced">Balanced</option></select></label>
+<label>Draw fraction <input id="fraction" type="number" min="0" max="1" step="0.05" value="0.4"></label>
+<label>Decay per hop <input id="decay" type="number" min="0" max="1" step="0.1" value="0.5"></label>
+<label>Depth <input id="depth" type="number" min="1" max="4" step="1" value="2"></label>
+<label>Max per artist <input id="max-branch" type="number" min="1" max="100" value="16"></label>
+<label>Max connections <input id="max-connections" type="number" min="0" max="500" value="100"></label>
+<button id="generate-map" type="button" disabled>Generate web</button><button id="connect-map" type="button" disabled>Connect mapped artists</button></section>
   <div id="status" role="status" aria-live="polite"></div>
  </section>
  <aside class="inspector" aria-label="Map inspector">

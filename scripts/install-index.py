@@ -6,6 +6,7 @@ import pathlib
 import shutil
 import sys
 import tarfile
+from importlib import import_module
 
 src,api=map(pathlib.Path,sys.argv[1:3])
 api.mkdir(parents=True,exist_ok=True)
@@ -25,6 +26,7 @@ else:
 m=json.loads((dest/"manifest.json").read_text())
 assert m["layout"]=="range-v1"
 prefix="data/"+version+"/"
+m["ranking"]=prefix+import_module("rank-index").build(dest,m)
 if m.get("search_layout")=="sorted-prefix-v1":
     m["search_directory"]={k:prefix+v for k,v in m["search_directory"].items()}
 if "atlas" in m:m["atlas"]=prefix+m["atlas"]

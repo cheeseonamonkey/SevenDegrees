@@ -27,6 +27,7 @@ viewer.mode(dimension);
 function syncDimension(){for(const b of $('dimension').querySelectorAll('button'))b.setAttribute('aria-pressed',String(b.dataset.dimension===dimension))}
 syncDimension();
 const MAX_NODES=matchMedia('(max-width:760px)').matches?240:500;
+const generation=()=>({ranking:$('ranking').value,fraction:Number($('fraction').value),decay:Number($('decay').value),depth:Number($('depth').value),maxBranch:Number($('max-branch').value),maxConnections:Math.min(MAX_NODES-1,Number($('max-connections').value))});
 const policy=()=>Object.fromEntries(Array.from(document.querySelectorAll('#filter-options input'),e=>[e.name,e.checked]));
 function status(text='',busy=false){$('status').replaceChildren(...(text?[busy?spinner(text):el('span',text)]:[]))}
 function begin(text){
@@ -45,13 +46,13 @@ function heading(name,description){
 function actions(...buttons){const n=el('div',undefined,'buttons');n.append(...buttons);$('detail').append(n)}
 function update(reset=false){
  viewer.update(model,reset);$('map-count').textContent=view==='atlas'?model.nodes.size+' communities':model.nodes.size+' artists · '+model.links.size+' links';
- $('legend').hidden=view==='atlas';$('edge-legend').hidden=view==='atlas';$('connect-map').disabled=view==='atlas'||!staticMode;
+ $('legend').hidden=view==='atlas';$('edge-legend').hidden=view==='atlas';$('connect-map').disabled=view==='atlas'||!staticMode;$('generate-map').disabled=view==='atlas'||!staticMode;
 }
 function reset(next){model.clear();pages.clear();selected=null;view=next;inspect()}
 function addNeighborhood(p){
  model.addNode(p.root);let limit=false;
- for(const s of p.steps){if(!model.nodes.has(s.to.id)&&model.nodes.size>=MAX_NODES){limit=true;continue}model.addConnection(p.root.id,s)}
- pages.set(p.root.id,limit?null:p.next);
+ for(const s of p.steps){if(model.links.size>=generation().maxConnections||(!model.nodes.has(s.to.id)&&model.nodes.size>=MAX_NODES)){limit=true;continue}model.addConnection(p.root.id,s)}
+ if(!limit)pages.set(p.root.id,p.next);
  return limit;
 }
 async function overview(){
@@ -66,13 +67,15 @@ async function overview(){
   update(true);finish(opt);
  }catch(e){if(!opt.signal.aborted){status(e.message);heading('Explore the atlas','Search an artist to begin.');}}
 }
-async function openArtist(value,remember=true){
+async function openArtist(value,remember=true,fullWeb=false){
  const opt=begin('Reading connections…');
  try{
-  const p=await api('/api/neighbors',{artist:value,...policy()},opt);if(opt.signal.aborted)return;
-  reset('local');addNeighborhood(p);lastQuery={artist:p.root.id};update(true);
+  const p=await api(staticMode?'/api/generate':'/api/neighbors',{artist:value,...policy(),...generation(),...(!fullWeb?{depth:1}:{})},opt);if(opt.signal.aborted)return;
+  reset('local');
+  if(staticMode){model.addNode(p.root);for(const e of p.links)model.addConnection(e.from.id,e)}else addNeighborhood(p);
+  lastQuery={artist:p.root.id,fullWeb};update(true);
   if(remember){const u=new URL(location.href);u.searchParams.set('artist',p.root.id);history.replaceState(null,'',u)}
-  selectNode(p.root.id);finish(opt,p.total.toLocaleString()+' direct connections');
+  selectNode(p.root.id);finish(opt,p.total.toLocaleString()+' eligible direct connections · '+model.links.size+' drawn');
  }catch(e){finish(opt,e.message)}
 }
 async function findPath(from,to){
@@ -106,8 +109,8 @@ function selectNode(id){
   return
  }
  heading(n.name,[n.type,n.disambiguation].filter(x=>x&&x!=='Unknown').join(' · '));
- const expand=button(pages.get(id)===null?'Connections loaded':pages.has(id)?'More connections':'Expand',()=>expandNode(id));
- expand.disabled=pages.get(id)===null||model.nodes.size>=MAX_NODES;
+ const expand=button(pages.get(id)===null?'Connections loaded':pages.has(id)?'More connections':'Browse connections',()=>expandNode(id));
+ expand.disabled=pages.get(id)===null||model.nodes.size>=MAX_NODES||model.links.size>=generation().maxConnections;
  actions(expand,button('Focus',()=>viewer.focus(id)),...(staticMode?[button('Evidence',()=>showEvidence(id)),button('Timeline',()=>showTimeline(id))]:[]));
  $('detail').append(listen(n.name));
  const adjacent=[...model.links.values()].filter(e=>e.source===id||e.target===id);
@@ -169,13 +172,17 @@ $('layout-button').onclick=()=>{const panel=$('layout-panel');panel.hidden=!pane
 function layoutSettings(){viewer.settings={cluster:$('layout-mode').value==='cluster',spacing:Number($('spacing').value),labels:$('labels').checked};viewer.update(model,false)}
 for(const id of ['layout-mode','spacing','labels'])$(id).onchange=layoutSettings;
 $('relayout').onclick=()=>viewer.update(model,true);
+$('generate-map').onclick=()=>{
+ const root=selected||lastQuery?.artist||model.nodes.keys().next().value;
+ if(root){$('layout-panel').hidden=true;$('layout-button').setAttribute('aria-expanded','false');openArtist(root,true,true)}
+};
 $('connect-map').onclick=async()=>{
  if(!staticMode||view!=='local')return;
  const opt=begin('Connecting map…');
  try{
-  const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],...policy()},opt);
-  if(opt.signal.aborted)return;for(const e of edges.slice(0,2000))model.addConnection(e.from.id,e);
-  update();finish(opt,edges.length.toLocaleString()+' relationships within this map'+(edges.length>2000?' · display capped at 2,000':''));
+  const settings=generation();const edges=await api('/api/map-links',{artists:[...model.nodes.keys()],existing:[...model.links.values()].map(e=>[e.source,e.target]),...policy(),...settings,maxConnections:Math.max(0,settings.maxConnections-model.links.size)},opt);
+  if(opt.signal.aborted)return;for(const e of edges)model.addConnection(e.from.id,e);
+  update();finish(opt,edges.length.toLocaleString()+' additional relationships drawn');
  }catch(e){finish(opt,e.message)}
 };
 
@@ -187,7 +194,7 @@ async function filters(){
   const row=el('label'),input=el('input');input.type='checkbox';input.checked=true;input.value=bit;input.name=key;const dot=el('i');dot.style.background=relationshipTypes[key]?.color||'#888';row.append(input,dot,document.createTextNode(' '+label));$('filter-options').append(row);
  }
  const count=()=>$('filter-count').textContent=document.querySelectorAll('#filter-options input:checked').length+'/'+Object.keys(choices).length;
- const changed=()=>{count();if(lastQuery?.artist)openArtist(lastQuery.artist);else if(lastQuery?.from)findPath(lastQuery.from,lastQuery.to)};
+ const changed=()=>{count();if(lastQuery?.artist)openArtist(lastQuery.artist,true,lastQuery.fullWeb);else if(lastQuery?.from)findPath(lastQuery.from,lastQuery.to)};
  $('edge-legend').replaceChildren(...Object.entries(choices).map(([key,c])=>{const label=el('span');const swatch=el('i');swatch.style.background=relationshipTypes[key]?.color||'#888';label.append(swatch,document.createTextNode(c.label));return label}));
  count();$('filter-options').onchange=changed;
  for(const [id,value] of [['all-types',true],['no-types',false]])$(id).onclick=()=>{for(const box of $('filter-options').querySelectorAll('input'))box.checked=value;changed()};

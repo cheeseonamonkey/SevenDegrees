@@ -27,7 +27,7 @@ function layoutData(model,settings){
  return {nodes,links};
 }
 function labelSprite(n,labels){
- const t=new SpriteText(labels?n.name:'');t.color='#f5f8ff';t.textHeight=Math.min(8,Math.max(3,size(n)*.55));t.fontWeight='600';t.strokeWidth=.7;t.strokeColor='#10161f';t.material.depthTest=false;t.renderOrder=10;return t
+ const t=new SpriteText(labels?n.name:'');t.color='#f5f8ff';t.textHeight=Math.min(8,Math.max(3,size(n)*.55));t.fontWeight='600';t.strokeWidth=.7;t.strokeColor='#181818';t.material.depthTest=false;t.renderOrder=10;return t
 }
 const safeLabel=value=>{const el=document.createElement('span');el.textContent=value;return el};
 class MapViewer {
@@ -49,7 +49,7 @@ class MapViewer {
   if(mode==='3D'){
    try{
     this.three=new ForceGraph3D(this.el,{controlType:'orbit',rendererConfig:{antialias:true}})
-     .backgroundColor('#10161f').showNavInfo(false).nodeId('id').nodeLabel(n=>safeLabel(n.name))
+     .backgroundColor('#181818').showNavInfo(false).nodeId('id').nodeLabel(n=>safeLabel(n.name))
      .nodeColor(nodeColor).nodeVal(n=>Math.pow(size(n)/4,3)).nodeThreeObjectExtend(true).nodeThreeObject(n=>labelSprite(n,this.settings.labels))
      .nodeResolution(12).linkColor(edgeColor).linkOpacity(.8).linkWidth(e=>e.weight?Math.min(3,Math.log10(e.weight+1)/2):.35)
      .linkLabel(e=>safeLabel(e.weight?e.weight.toLocaleString()+' links':e.title||e.kind))
@@ -61,7 +61,7 @@ class MapViewer {
    }
   }else{
    this.cy=cytoscape({container:this.el,elements:[],style:[
-    {selector:'node',style:{'background-color':n=>nodeColor(n.data()),label:n=>this.settings.labels?n.data('name'):'',color:'#f5f8ff','font-size':n=>Math.max(9,Math.min(16,size(n.data())*.9)),'font-weight':600,'text-valign':'center','text-halign':'center','text-outline-width':2,'text-outline-color':'#10161f','text-wrap':'wrap','text-max-width':120,width:n=>size(n.data())*2.4,height:n=>size(n.data())*2.4}},
+    {selector:'node',style:{'background-color':n=>nodeColor(n.data()),label:n=>this.settings.labels?n.data('name'):'',color:'#f5f8ff','font-size':n=>Math.max(9,Math.min(16,size(n.data())*.9)),'font-weight':600,'text-valign':'center','text-halign':'center','text-outline-width':2,'text-outline-color':'#181818','text-wrap':'wrap','text-max-width':120,width:n=>size(n.data())*2.4,height:n=>size(n.data())*2.4}},
     {selector:'edge',style:{'line-color':e=>edgeColor(e.data()),width:1.6,opacity:.8,'curve-style':'bezier'}},
     {selector:'edge[kind = "cover"],edge[kind = "cover-reference"],edge[kind = "tribute"]',style:{'line-style':'dashed'}}
    ]});

@@ -173,6 +173,31 @@ The local HTTP server accepts the equivalent query parameters, e.g.
 MCP tools expose the same boolean parameters. GitHub Pages hosts static data,
 so dynamic queries execute in the shared client, not as server-side routes.
 
+### Ranked web generation
+
+The map settings expose a draw fraction (default 0.4), decay per hop (0.5),
+depth (2), max per artist (16), and total edge budget (100). Search opens a
+ranked one-hop neighborhood; Generate web expands recursively. At hop
+`d`, the eligible-neighbor fraction and branch cap are multiplied by
+`decay ** d` and rounded up. The total budget is a hard limit for generated
+webs. The phone UI additionally limits the number of visible nodes.
+Ranking uses actual unique graph degree, the existing ListenBrainz chart,
+or a combination. Connect mapped artists ranks missing links using shared
+neighbors and the selected ranking, and respects the remaining edge budget.
+The compact rank index is derived from the installed graph during Pages
+assembly and loaded only for ranked operations; pathfinding remains exact
+and unaffected by display limits.
+
+```js
+await query('/api/generate', {
+  artist: 'David Bowie', ranking: 'balanced', fraction: 0.4,
+  decay: 0.5, depth: 2, maxBranch: 16, maxConnections: 100
+});
+```
+
+The same parameters are exposed through MCP's `music_generate` tool.
+The complete evidence and ordinary paginated neighbor API remain unchanged.
+
 ### Read-only MCP
 
 ```sh

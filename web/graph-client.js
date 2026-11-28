@@ -83,7 +83,8 @@ async function graphClient(manifestURL){
    case '/api/artists':return graph.search(params.q,progress);
    case '/api/path':return graph.path(params.from,params.to,relationshipMask(params),progress);
    case '/api/neighbors':return graph.neighbors(params.artist,relationshipMask(params),params.offset,progress);
-   case '/api/map-links':return graph.mapLinks(params.artists,relationshipMask(params),progress);
+   case '/api/generate':return graph.generate(params.artist,relationshipMask(params),params,progress);
+   case '/api/map-links':return graph.mapLinks(params.artists,relationshipMask(params),progress,params);
    case '/api/evidence':return graph.evidence(params.artist,params.other,params.offset,progress);
    default:throw Error('Unknown graph operation');
   }

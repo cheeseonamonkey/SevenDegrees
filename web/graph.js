@@ -64,6 +64,59 @@ function createGraph(store){
   const [people,witnesses]=await Promise.all([artists(pairs.map(p=>p[0])),rows('witness',pairs.map(p=>witness(p[1])))]);
   return people.map((a,i)=>{const [kind,title,source]=witnesses[i];return {to:a,kind,title,source}});
  }
+ // Generation uses the full eligible adjacency, not the first UUID-sorted page.
+ function uniqueNeighbors(row,filter){
+  const pairs=new Map();
+  for(let i=0;i<row.length;i+=2)if(allowed(row[i+1],filter)&&!pairs.has(row[i]))pairs.set(row[i],row[i+1]);
+  return pairs;
+ }
+ const options=p=>{
+  const number=(key,def,min,max,integer=false)=>{
+   const v=p[key]??def;
+   if(typeof v!=='number'||!Number.isFinite(v)||v<min||v>max||(integer&&!Number.isInteger(v)))throw Error('Invalid '+key);
+   return v;
+  };
+  const ranking=p.ranking??'popular';
+  if(!['popular','degree','balanced'].includes(ranking))throw Error('Invalid ranking');
+  return {ranking,fraction:number('fraction',.4,0,1),decay:number('decay',.5,0,1),depth:number('depth',2,1,4,true),maxBranch:number('maxBranch',16,1,100,true),maxConnections:number('maxConnections',100,0,500,true)};
+ };
+ async function rankingData(){
+  if(!manifest.ranking)throw Error('Ranking index unavailable in this snapshot');
+  return resource(manifest.ranking);
+ }
+ function score(id,rank,mode){
+  const degree=Math.log1p(rank.degree[id]||0),chart=rank.popular[id];
+  const popularity=chart===undefined?0:Math.log1p(1000/(chart+1));
+  return mode==='degree'?degree:mode==='popular'?degree*.25+popularity*3:degree+popularity;
+ }
+ async function generate(name,filter,params,progress=()=>{}){
+  const o=options(params),root=await resolve(name,progress),rank=await rankingData();
+  const visited=new Map([[root,0]]),chosen=[],links=new Set();
+  const rootRow=(await rows("topology",[root]))[0];
+  let frontier=[root],total=uniqueNeighbors(rootRow,filter).size;
+  for(let depth=0;depth<o.depth&&frontier.length;depth++){
+   const next=[];
+   for(let pos=0;pos<frontier.length&&chosen.length<o.maxConnections;pos+=16){
+    const batch=frontier.slice(pos,pos+16),data=depth===0?[rootRow]:await rows('topology',batch);
+    progress({message:'Generating map',visited:visited.size});
+    for(let j=0;j<batch.length&&chosen.length<o.maxConnections;j++){
+     const from=batch[j],pairs=uniqueNeighbors(data[j],filter);
+     if(depth===0)total=pairs.size;
+     const candidates=[...pairs].filter(([to])=>!links.has(from<to?from+':'+to:to+':'+from)).map(([to,w])=>[to,w,score(to,rank,o.ranking)]);
+     candidates.sort((a,b)=>b[2]-a[2]||a[0]-b[0]);
+     const fraction=o.fraction*Math.pow(o.decay,depth);
+     const budget=Math.min(Math.ceil(o.maxBranch*Math.pow(o.decay,depth)),Math.ceil(pairs.size*fraction),o.maxConnections-chosen.length);
+     for(const [to,w] of candidates.slice(0,budget)){
+      links.add(from<to?from+':'+to:to+':'+from);chosen.push([from,to,w]);
+      if(!visited.has(to)){visited.set(to,depth+1);next.push(to)}
+     }
+    }
+   }
+   frontier=next;
+  }
+  const steps=await hydrate(chosen.map(([,to,w])=>[to,w])),people=await artists(chosen.map(([from])=>from));
+  return {root:await artist(root),total,links:steps.map((s,i)=>({from:people[i],...s})),settings:o};
+ }
  async function neighbors(name,strict=false,offset=0,progress){
   if(!Number.isInteger(offset)||offset<0)throw Error('Invalid neighbor offset');
   const root=await resolve(name,progress);
@@ -106,7 +159,7 @@ function createGraph(store){
   }
   return steps;
  }
- async function mapLinks(names,filter,progress){
+ async function mapLinks(names,filter,progress,params){
   if(!Array.isArray(names)||names.length>500)throw Error('Map limit is 500 artists');
   const ids=await Promise.all(names.map(name=>resolve(name,progress))),chosen=new Set(ids),pairs=[];
   const size=manifest.sections.topology.block_size,groups=new Map();
@@ -120,8 +173,23 @@ function createGraph(store){
     for(let k=0;k<row.length;k+=2){const to=row[k],w=row[k+1];if(to>from&&chosen.has(to)&&allowed(w,filter))pairs.push([from,to,w])}
    }
   }
-  const steps=await hydrate(pairs.map(([,to,w])=>[to,w])),people=await artists(pairs.map(([from])=>from));
-  return pairs.map((_,i)=>({from:people[i],...steps[i]}));
+  let selected=pairs;
+  if(params?.fraction!==undefined||params?.maxConnections!==undefined||params?.ranking!==undefined){
+   const o=options(params),rank=await rankingData(),neighbors=new Map(ids.map(id=>[id,new Set()]));
+   for(const [a,b] of pairs){neighbors.get(a).add(b);neighbors.get(b).add(a)}
+   const existing=new Set((params.existing||[]).map(pair=>[...pair].sort().join(':')));
+   const namesByID=new Map(ids.map((id,i)=>[id,names[i]]));
+   const available=pairs.filter(([a,b])=>!existing.has([namesByID.get(a),namesByID.get(b)].sort().join(':')));
+   const scores=new Map(available.map(p=>{
+    const [a,b]=p,small=neighbors.get(a),large=neighbors.get(b);
+    let mutual=0;for(const c of small)if(large.has(c))mutual++;
+    return [p,Math.log1p(mutual)*2+score(a,rank,o.ranking)+score(b,rank,o.ranking)];
+   }));
+   available.sort((a,b)=>scores.get(b)-scores.get(a)||a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);
+   selected=available.slice(0,Math.min(o.maxConnections,Math.ceil(available.length*o.fraction)));
+  }
+  const steps=await hydrate(selected.map(([,to,w])=>[to,w])),people=await artists(selected.map(([from])=>from));
+  return selected.map((_,i)=>({from:people[i],...steps[i]}));
  }
  async function path(from,to,strict=false,progress=()=>{}){
   const [start,end]=await Promise.all([resolve(from,progress),resolve(to,progress)]);
@@ -196,6 +264,6 @@ function createGraph(store){
   const page=records.slice(offset,offset+40),others=await artists(page.map(r=>r[0]));
   return {root,total:records.length,available:true,next:offset+page.length<records.length?offset+page.length:null,records:page.map((r,i)=>({other:others[i],direction:r[1],id:r[2],kind:r[3],begin:r[4],end:r[5],ended:r[6],attributes:r[7],source:r[8]}))};
  }
- return {search,resolve,neighbors,path,evidence,profile,mapLinks,stats:()=>manifest.stats};
+ return {search,resolve,neighbors,path,evidence,profile,mapLinks,generate,stats:()=>manifest.stats};
 }
 if(typeof module!=='undefined')module.exports={createGraph};
